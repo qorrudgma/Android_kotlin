@@ -176,12 +176,12 @@ fun FilterSection() {
             .fillMaxWidth()
             .padding(bottom = 16.dp)
     ) {
-        Text(
-            text = "선택",
-            fontSize = 16.sp,
-            fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.padding(bottom = 8.dp)
-        )
+//        Text(
+//            text = "선택",
+//            fontSize = 16.sp,
+//            fontWeight = FontWeight.SemiBold,
+//            modifier = Modifier.padding(bottom = 8.dp)
+//        )
 
         ExposedDropdownMenuBox(
             expanded = expanded,
