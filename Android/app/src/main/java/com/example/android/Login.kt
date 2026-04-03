@@ -1,14 +1,14 @@
 package com.example.android
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -19,15 +19,11 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextFieldDefaults
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -37,13 +33,19 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.android.ui.theme.AndroidTheme
 
-class MainActivity : ComponentActivity() {
+class LoginActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+
         setContent {
             AndroidTheme {
-                MainScreen()
+                LoginScreen(
+                    onLoginSuccess = {
+                        val intent = Intent(this@LoginActivity, MainActivity::class.java)
+                        startActivity(intent)
+                        finish()
+                    }
+                )
             }
         }
     }
@@ -56,48 +58,84 @@ class MainActivity : ComponentActivity() {
 )
 
 @Composable
-fun MainScreenPreview() {
+fun LoginScreenPreview() {
     AndroidTheme {
-        MainScreen()
+        LoginScreen(
+            onLoginSuccess = {}
+        )
     }
 }
 
 @Composable
-fun MainScreen() {
+fun LoginScreen(
+    onLoginSuccess: () -> Unit
+) {
+    var id by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var checked by remember { mutableStateOf(true) }
+    var errorMessage by remember { mutableStateOf("") }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(Color(0xFFF5F6F8))
             .padding(horizontal = 20.dp)
     ) {
-        HeaderSection(
+        LoginHeaderSection(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(120.dp)
         )
 
-        DescriptionSection(
+        LoginTitleSection(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(70.dp)
         )
 
-        LoginSection(
+        LoginInputSection(
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(1f)
+                .weight(1f),
+            id = id,
+            onIdChange = { id = it },
+            password = password,
+            onPasswordChange = { password = it },
+            checked = checked,
+            onCheckedChange = { checked = it }
         )
 
-        ActionButtons(
+        if (errorMessage.isNotEmpty()) {
+            Text(
+                text = errorMessage,
+                color = Color.Red,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 8.dp)
+            )
+        }
+
+        BottomSection(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(140.dp)
+                .padding(bottom = 20.dp),
+            onLoginClick = {
+                if (id == "1234" && password == "1234") {
+                    errorMessage = ""
+                    onLoginSuccess()
+                } else {
+                    errorMessage = "아이디 또는 비밀번호가 틀렸습니다."
+                }
+            },
+            onSignupClick = {
+                errorMessage = "회원가입 기능은 아직 준비 중입니다."
+            }
         )
     }
 }
 
 @Composable
-fun HeaderSection(modifier: Modifier = Modifier) {
+fun LoginHeaderSection(modifier: Modifier = Modifier) {
     Box(
         modifier = modifier,
         contentAlignment = Alignment.BottomCenter
@@ -110,7 +148,7 @@ fun HeaderSection(modifier: Modifier = Modifier) {
 }
 
 @Composable
-fun DescriptionSection(modifier: Modifier = Modifier) {
+fun LoginTitleSection(modifier: Modifier = Modifier) {
     Box(
         modifier = modifier,
         contentAlignment = Alignment.Center
@@ -124,10 +162,15 @@ fun DescriptionSection(modifier: Modifier = Modifier) {
 }
 
 @Composable
-fun LoginSection(modifier: Modifier = Modifier) {
-    var id by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
-
+fun LoginInputSection(
+    modifier: Modifier = Modifier,
+    id: String,
+    onIdChange: (String) -> Unit,
+    password: String,
+    onPasswordChange: (String) -> Unit,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
     Box(
         modifier = modifier,
         contentAlignment = Alignment.Center
@@ -155,7 +198,7 @@ fun LoginSection(modifier: Modifier = Modifier) {
 
                 OutlinedTextField(
                     value = id,
-                    onValueChange = { id = it },
+                    onValueChange = { onIdChange(it) },
                     label = { Text("아이디") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
@@ -165,7 +208,7 @@ fun LoginSection(modifier: Modifier = Modifier) {
 
                 OutlinedTextField(
                     value = password,
-                    onValueChange = { password = it },
+                    onValueChange = { onPasswordChange(it) },
                     label = { Text("비밀번호") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
@@ -173,41 +216,56 @@ fun LoginSection(modifier: Modifier = Modifier) {
                     shape = RoundedCornerShape(12.dp),
                     colors = TextFieldDefaults.colors()
                 )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    Checkbox(
+                        checked = checked,
+                        onCheckedChange = { onCheckedChange(it) }
+                    )
+                    Text("아이디/비밀번호 저장")
+                }
             }
         }
     }
 }
 
 @Composable
-fun ActionButtons(modifier: Modifier = Modifier) {
+fun BottomSection(
+    modifier: Modifier = Modifier,
+    onLoginClick: () -> Unit,
+    onSignupClick: () -> Unit
+) {
     Box(
         modifier = modifier,
-        contentAlignment = Alignment.Center
+        contentAlignment = Alignment.TopCenter
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Button(
-                onClick = { },
+                onClick = { onLoginClick() },
                 modifier = Modifier
                     .width(220.dp)
                     .height(52.dp),
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF3F51B5),
+                    containerColor = Color(0xFF191970),
                     contentColor = Color.White
                 )
             ) {
                 Text(
                     text = "로그인",
                     fontSize = 18.sp
-
                 )
             }
 
             Button(
-                onClick = { },
+                onClick = { onSignupClick() },
                 modifier = Modifier
                     .width(220.dp)
                     .height(52.dp),
