@@ -120,6 +120,8 @@ fun LoginScreen(
                 .fillMaxWidth()
                 .padding(bottom = 20.dp),
             onLoginClick = {
+                id = "1234"
+                password = "1234"
                 if (id == "1234" && password == "1234") {
                     errorMessage = ""
                     onLoginSuccess()

@@ -12,16 +12,22 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -58,7 +64,6 @@ class MainActivity : ComponentActivity() {
     showSystemUi = true,
     device = "id:pixel_5"
 )
-
 @Composable
 fun MainScreenPreview() {
     AndroidTheme {
@@ -108,6 +113,48 @@ fun MainScreen(
         )
     )
 
+    val options = listOf("1", "2", "3", "4", "5")
+
+    var alcExpanded by remember { mutableStateOf(false) }
+    var materialExpanded by remember { mutableStateOf(false) }
+    var supplierExpanded by remember { mutableStateOf(false) }
+    var processExpanded by remember { mutableStateOf(false) }
+    var defectExpanded by remember { mutableStateOf(false) }
+
+    var selectedAlcCode by remember { mutableStateOf(options[0]) }
+    var selectedMaterialNo by remember { mutableStateOf(options[0]) }
+    var selectedSupplier by remember { mutableStateOf(options[0]) }
+    var selectedProcess by remember { mutableStateOf(options[0]) }
+    var selectedDefectReason by remember { mutableStateOf(options[0]) }
+
+    var showRegisterDialog by remember { mutableStateOf(false) }
+
+    if (showRegisterDialog) {
+        AlertDialog(
+            onDismissRequest = { showRegisterDialog = false },
+            title = {
+                Text("등록 완료")
+            },
+            text = {
+                Text(
+                    "선택한 항목으로 불량 등록을 진행했습니다.\n" +
+                            "ALC 코드: $selectedAlcCode\n" +
+                            "자재번호: $selectedMaterialNo\n" +
+                            "공급업체: $selectedSupplier\n" +
+                            "실장착공정: $selectedProcess\n" +
+                            "불량 사유: $selectedDefectReason"
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = { showRegisterDialog = false }
+                ) {
+                    Text("확인")
+                }
+            }
+        )
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -121,11 +168,51 @@ fun MainScreen(
             onLogoutClick = onLogoutClick
         )
 
-        FilterSection()
+        FilterSection(
+            options = options,
 
-        TableSection(
-            items = sampleList
+            alcExpanded = alcExpanded,
+            onAlcExpandedChange = { alcExpanded = it },
+            selectedAlcCode = selectedAlcCode,
+            onSelectedAlcCodeChange = { selectedAlcCode = it },
+
+            materialExpanded = materialExpanded,
+            onMaterialExpandedChange = { materialExpanded = it },
+            selectedMaterialNo = selectedMaterialNo,
+            onSelectedMaterialNoChange = { selectedMaterialNo = it },
+
+            supplierExpanded = supplierExpanded,
+            onSupplierExpandedChange = { supplierExpanded = it },
+            selectedSupplier = selectedSupplier,
+            onSelectedSupplierChange = { selectedSupplier = it },
+
+            processExpanded = processExpanded,
+            onProcessExpandedChange = { processExpanded = it },
+            selectedProcess = selectedProcess,
+            onSelectedProcessChange = { selectedProcess = it },
+
+            defectExpanded = defectExpanded,
+            onDefectExpandedChange = { defectExpanded = it },
+            selectedDefectReason = selectedDefectReason,
+            onSelectedDefectReasonChange = { selectedDefectReason = it }
         )
+
+        ButtonSection(
+            onRegisterClick = {
+                showRegisterDialog = true
+            },
+            onResetClick = {
+                selectedAlcCode = options[0]
+                selectedMaterialNo = options[0]
+                selectedSupplier = options[0]
+                selectedProcess = options[0]
+                selectedDefectReason = options[0]
+            }
+        )
+
+//        TableSection(
+//            items = sampleList
+//        )
     }
 }
 
@@ -166,55 +253,175 @@ fun LogoutSection(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun FilterSection() {
-    val options = listOf("1", "2", "3", "4", "5")
-    var expanded by remember { mutableStateOf(false) }
-    var selectedOption by remember { mutableStateOf(options[0]) }
+fun FilterSection(
+    options: List<String>,
 
+    alcExpanded: Boolean,
+    onAlcExpandedChange: (Boolean) -> Unit,
+    selectedAlcCode: String,
+    onSelectedAlcCodeChange: (String) -> Unit,
+
+    materialExpanded: Boolean,
+    onMaterialExpandedChange: (Boolean) -> Unit,
+    selectedMaterialNo: String,
+    onSelectedMaterialNoChange: (String) -> Unit,
+
+    supplierExpanded: Boolean,
+    onSupplierExpandedChange: (Boolean) -> Unit,
+    selectedSupplier: String,
+    onSelectedSupplierChange: (String) -> Unit,
+
+    processExpanded: Boolean,
+    onProcessExpandedChange: (Boolean) -> Unit,
+    selectedProcess: String,
+    onSelectedProcessChange: (String) -> Unit,
+
+    defectExpanded: Boolean,
+    onDefectExpandedChange: (Boolean) -> Unit,
+    selectedDefectReason: String,
+    onSelectedDefectReasonChange: (String) -> Unit
+) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(bottom = 16.dp)
+            .padding(bottom = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-//        Text(
-//            text = "선택",
-//            fontSize = 16.sp,
-//            fontWeight = FontWeight.SemiBold,
-//            modifier = Modifier.padding(bottom = 8.dp)
-//        )
+        DropdownField(
+            label = "ALC 코드",
+            options = options,
+            expanded = alcExpanded,
+            onExpandedChange = onAlcExpandedChange,
+            selectedValue = selectedAlcCode,
+            onValueSelected = onSelectedAlcCodeChange
+        )
 
-        ExposedDropdownMenuBox(
+        DropdownField(
+            label = "자재번호",
+            options = options,
+            expanded = materialExpanded,
+            onExpandedChange = onMaterialExpandedChange,
+            selectedValue = selectedMaterialNo,
+            onValueSelected = onSelectedMaterialNoChange
+        )
+
+        DropdownField(
+            label = "공급업체",
+            options = options,
+            expanded = supplierExpanded,
+            onExpandedChange = onSupplierExpandedChange,
+            selectedValue = selectedSupplier,
+            onValueSelected = onSelectedSupplierChange
+        )
+
+        DropdownField(
+            label = "실장착공정",
+            options = options,
+            expanded = processExpanded,
+            onExpandedChange = onProcessExpandedChange,
+            selectedValue = selectedProcess,
+            onValueSelected = onSelectedProcessChange
+        )
+
+        DropdownField(
+            label = "불량 사유",
+            options = options,
+            expanded = defectExpanded,
+            onExpandedChange = onDefectExpandedChange,
+            selectedValue = selectedDefectReason,
+            onValueSelected = onSelectedDefectReasonChange
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun DropdownField(
+    label: String,
+    options: List<String>,
+    expanded: Boolean,
+    onExpandedChange: (Boolean) -> Unit,
+    selectedValue: String,
+    onValueSelected: (String) -> Unit
+) {
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { onExpandedChange(!expanded) }
+    ) {
+        OutlinedTextField(
+            value = selectedValue,
+            onValueChange = {},
+            readOnly = true,
+            label = { Text(label) },
+            trailingIcon = {
+                ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
+            },
+            modifier = Modifier
+                .menuAnchor()
+                .fillMaxWidth(),
+            colors = TextFieldDefaults.colors()
+        )
+
+        ExposedDropdownMenu(
             expanded = expanded,
-            onExpandedChange = { expanded = !expanded }
+            onDismissRequest = { onExpandedChange(false) }
         ) {
-            OutlinedTextField(
-                value = selectedOption,
-                onValueChange = {},
-                readOnly = true,
-                label = { Text("번호 선택") },
-                trailingIcon = {
-                    ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
-                },
-                modifier = Modifier
-                    .fillMaxWidth(),
-                colors = TextFieldDefaults.colors()
-            )
-
-            ExposedDropdownMenu(
-                expanded = expanded,
-                onDismissRequest = { expanded = false },
-                modifier = Modifier.exposedDropdownSize()
-            ) {
-                options.forEach { option ->
-                    DropdownMenuItem(
-                        text = { Text(option) },
-                        onClick = {
-                            selectedOption = option
-                            expanded = false
-                        }
-                    )
-                }
+            options.forEach { option ->
+                DropdownMenuItem(
+                    text = { Text(option) },
+                    onClick = {
+                        onValueSelected(option)
+                        onExpandedChange(false)
+                    }
+                )
             }
+        }
+    }
+}
+
+@Composable
+fun ButtonSection(
+    onRegisterClick: () -> Unit,
+    onResetClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 4.dp, bottom = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Button(
+            onClick = { onRegisterClick() },
+            modifier = Modifier
+                .weight(1f)
+                .height(52.dp),
+            shape = RoundedCornerShape(12.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Color(0xFF191970),
+                contentColor = Color.White
+            )
+        ) {
+            Text(
+                text = "불량 등록",
+                fontSize = 18.sp
+            )
+        }
+
+        Button(
+            onClick = { onResetClick() },
+            modifier = Modifier
+                .weight(1f)
+                .height(52.dp),
+            shape = RoundedCornerShape(12.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Color(0xFF9E9E9E),
+                contentColor = Color.White
+            )
+        ) {
+            Text(
+                text = "리셋",
+                fontSize = 18.sp
+            )
         }
     }
 }
@@ -224,7 +431,9 @@ fun TableSection(
     items: List<DefectItem>
 ) {
     Column(
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 12.dp)
     ) {
         Text(
             text = "불량 정보",
