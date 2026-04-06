@@ -1,20 +1,18 @@
 package com.example.android
 
+import android.content.Intent
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -28,8 +26,8 @@ import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -42,6 +40,11 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.android.ui.theme.AndroidTheme
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import org.json.JSONObject
+import java.net.HttpURLConnection
+import java.net.URL
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -51,6 +54,8 @@ class MainActivity : ComponentActivity() {
             AndroidTheme {
                 MainScreen(
                     onLogoutClick = {
+                        val intent = Intent(this@MainActivity, LoginActivity::class.java)
+                        startActivity(intent)
                         finish()
                     }
                 )
@@ -73,71 +78,100 @@ fun MainScreenPreview() {
     }
 }
 
-data class DefectItem(
-    val id: String,
-    val alccode: String,
-    val materialNo: String,
-    val supplier: String,
-    val name: String,
-    val status: String
-)
-
 @Composable
 fun MainScreen(
     onLogoutClick: () -> Unit
 ) {
-    val sampleList = listOf(
-        DefectItem(
-            id = "1",
-            alccode = "S00",
-            materialNo = "05203-SW000",
-            supplier = "S994",
-            name = "광성기업(주)",
-            status = "0"
-        ),
-        DefectItem(
-            id = "2",
-            alccode = "S01",
-            materialNo = "05203-SW010",
-            supplier = "S994",
-            name = "(주)한화미 의령공장",
-            status = "0"
-        ),
-        DefectItem(
-            id = "3",
-            alccode = "S100",
-            materialNo = "10189-04123",
-            supplier = "E819",
-            name = "Pneumatic Components Limited",
-            status = "1"
-        )
-    )
+    var alcOptions by remember { mutableStateOf(listOf<String>()) }
+    var materialOptions by remember { mutableStateOf(listOf<String>()) }
+    var supplierOptions by remember { mutableStateOf(listOf<String>()) }
+    var processOptions by remember { mutableStateOf(listOf<String>()) }
 
-    val options = listOf("1", "2", "3", "4", "5")
-
-    var alcExpanded by remember { mutableStateOf(false) }
-    var materialExpanded by remember { mutableStateOf(false) }
-    var supplierExpanded by remember { mutableStateOf(false) }
-    var processExpanded by remember { mutableStateOf(false) }
-    var defectExpanded by remember { mutableStateOf(false) }
-
-    var selectedAlcCode by remember { mutableStateOf(options[0]) }
-    var selectedMaterialNo by remember { mutableStateOf(options[0]) }
-    var selectedSupplier by remember { mutableStateOf(options[0]) }
-    var selectedProcess by remember { mutableStateOf(options[0]) }
-    var selectedDefectReason by remember { mutableStateOf(options[0]) }
+    var selectedAlcCode by remember { mutableStateOf("") }
+    var selectedMaterialNo by remember { mutableStateOf("") }
+    var selectedSupplier by remember { mutableStateOf("") }
+    var selectedProcess by remember { mutableStateOf("") }
+    var selectedDefectReason by remember { mutableStateOf("") }
 
     var showRegisterDialog by remember { mutableStateOf(false) }
+    var isLoading by remember { mutableStateOf(true) }
+
+    // 불량 사유는 일단 예시값
+    val defectReasonOptions = listOf(
+        "스크래치",
+        "오염",
+        "변형",
+        "파손",
+        "기타"
+    )
+
+    LaunchedEffect(Unit) {
+        try {
+            val result = withContext(Dispatchers.IO) {
+                val apiUrl = "http://10.0.2.2:7237/api/MaterialsControllers/options"
+
+                Log.d("API_TEST", "호출 URL: $apiUrl")
+
+                val url = URL(apiUrl)
+                val connection = url.openConnection() as HttpURLConnection
+
+                try {
+                    connection.requestMethod = "GET"
+                    connection.connectTimeout = 5000
+                    connection.readTimeout = 5000
+
+                    val responseCode = connection.responseCode
+                    Log.d("API_TEST", "응답 코드: $responseCode")
+
+                    val stream = if (responseCode in 200..299) {
+                        connection.inputStream
+                    } else {
+                        connection.errorStream
+                    }
+
+                    stream.bufferedReader().use { it.readText() }
+                } finally {
+                    connection.disconnect()
+                }
+            }
+
+            Log.d("API_TEST", "응답값: $result")
+
+            val json = JSONObject(result)
+
+            val alcArray = json.getJSONArray("alcCodeList")
+            val materialArray = json.getJSONArray("materialNoList")
+            val supplierArray = json.getJSONArray("supplierList")
+            val processArray = json.getJSONArray("processList")
+
+            alcOptions = List(alcArray.length()) { index -> alcArray.getString(index) }
+            materialOptions = List(materialArray.length()) { index -> materialArray.getString(index) }
+            supplierOptions = List(supplierArray.length()) { index -> supplierArray.getString(index) }
+            processOptions = List(processArray.length()) { index -> processArray.getString(index) }
+
+            // 초기값
+//            if (alcOptions.isNotEmpty()) selectedAlcCode = alcOptions.first()
+//            if (materialOptions.isNotEmpty()) selectedMaterialNo = materialOptions.first()
+//            if (supplierOptions.isNotEmpty()) selectedSupplier = supplierOptions.first()
+//            if (processOptions.isNotEmpty()) selectedProcess = processOptions.first()
+//            if (defectReasonOptions.isNotEmpty()) selectedDefectReason = defectReasonOptions.first()
+
+        } catch (e: Exception) {
+            Log.e("API_TEST", "조회 에러", e)
+        } finally {
+            isLoading = false
+        }
+    }
 
     if (showRegisterDialog) {
         AlertDialog(
             onDismissRequest = { showRegisterDialog = false },
             title = {
-                Text("등록 완료")
+                Text("등록 확인")
             },
             text = {
                 Text(
-                    "선택한 항목으로 불량 등록을 진행했습니다.\n" +
+                    "선택한 항목으로 불량 등록을 진행합니다.\n\n" +
                             "ALC 코드: $selectedAlcCode\n" +
                             "자재번호: $selectedMaterialNo\n" +
                             "공급업체: $selectedSupplier\n" +
@@ -168,52 +202,56 @@ fun MainScreen(
             onLogoutClick = onLogoutClick
         )
 
-        FilterSection(
-            options = options,
+//        if (isLoading) {
+//            Text(
+//                text = "데이터 불러오는 중...",
+//                fontSize = 16.sp,
+//                modifier = Modifier.padding(vertical = 16.dp)
+//            )
+//        } else {
+            FilterSection(
+                alcOptions = alcOptions,
+                materialOptions = materialOptions,
+                supplierOptions = supplierOptions,
+                processOptions = processOptions,
+                defectOptions = defectReasonOptions,
 
-            alcExpanded = alcExpanded,
-            onAlcExpandedChange = { alcExpanded = it },
-            selectedAlcCode = selectedAlcCode,
-            onSelectedAlcCodeChange = { selectedAlcCode = it },
+                selectedAlcCode = selectedAlcCode,
+                onSelectedAlcCodeChange = { selectedAlcCode = it },
 
-            materialExpanded = materialExpanded,
-            onMaterialExpandedChange = { materialExpanded = it },
-            selectedMaterialNo = selectedMaterialNo,
-            onSelectedMaterialNoChange = { selectedMaterialNo = it },
+                selectedMaterialNo = selectedMaterialNo,
+                onSelectedMaterialNoChange = { selectedMaterialNo = it },
 
-            supplierExpanded = supplierExpanded,
-            onSupplierExpandedChange = { supplierExpanded = it },
-            selectedSupplier = selectedSupplier,
-            onSelectedSupplierChange = { selectedSupplier = it },
+                selectedSupplier = selectedSupplier,
+                onSelectedSupplierChange = { selectedSupplier = it },
 
-            processExpanded = processExpanded,
-            onProcessExpandedChange = { processExpanded = it },
-            selectedProcess = selectedProcess,
-            onSelectedProcessChange = { selectedProcess = it },
+                selectedProcess = selectedProcess,
+                onSelectedProcessChange = { selectedProcess = it },
 
-            defectExpanded = defectExpanded,
-            onDefectExpandedChange = { defectExpanded = it },
-            selectedDefectReason = selectedDefectReason,
-            onSelectedDefectReasonChange = { selectedDefectReason = it }
-        )
+                selectedDefectReason = selectedDefectReason,
+                onSelectedDefectReasonChange = { selectedDefectReason = it }
+            )
 
-        ButtonSection(
-            onRegisterClick = {
-                showRegisterDialog = true
-            },
-            onResetClick = {
-                selectedAlcCode = options[0]
-                selectedMaterialNo = options[0]
-                selectedSupplier = options[0]
-                selectedProcess = options[0]
-                selectedDefectReason = options[0]
-            }
-        )
+            ButtonSection(
+                onRegisterClick = {
+                    showRegisterDialog = true
+                },
+                onResetClick = {
+//                    selectedAlcCode = alcOptions.firstOrNull() ?: ""
+//                    selectedMaterialNo = materialOptions.firstOrNull() ?: ""
+//                    selectedSupplier = supplierOptions.firstOrNull() ?: ""
+//                    selectedProcess = processOptions.firstOrNull() ?: ""
+//                    selectedDefectReason = defectReasonOptions.firstOrNull() ?: ""
 
-//        TableSection(
-//            items = sampleList
-//        )
-    }
+                    selectedAlcCode = ""
+                    selectedMaterialNo = ""
+                    selectedSupplier = ""
+                    selectedProcess = ""
+                    selectedDefectReason = ""
+                }
+            )
+        }
+//    }
 }
 
 @Composable
@@ -236,12 +274,11 @@ fun HeaderSection() {
 fun LogoutSection(
     onLogoutClick: () -> Unit
 ) {
-    Row(
+    Box(
         modifier = Modifier
             .fillMaxWidth()
             .padding(bottom = 16.dp),
-        horizontalArrangement = Arrangement.End,
-        verticalAlignment = Alignment.CenterVertically
+        contentAlignment = Alignment.CenterEnd
     ) {
         Button(
             onClick = { onLogoutClick() }
@@ -251,33 +288,26 @@ fun LogoutSection(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FilterSection(
-    options: List<String>,
+    alcOptions: List<String>,
+    materialOptions: List<String>,
+    supplierOptions: List<String>,
+    processOptions: List<String>,
+    defectOptions: List<String>,
 
-    alcExpanded: Boolean,
-    onAlcExpandedChange: (Boolean) -> Unit,
     selectedAlcCode: String,
     onSelectedAlcCodeChange: (String) -> Unit,
 
-    materialExpanded: Boolean,
-    onMaterialExpandedChange: (Boolean) -> Unit,
     selectedMaterialNo: String,
     onSelectedMaterialNoChange: (String) -> Unit,
 
-    supplierExpanded: Boolean,
-    onSupplierExpandedChange: (Boolean) -> Unit,
     selectedSupplier: String,
     onSelectedSupplierChange: (String) -> Unit,
 
-    processExpanded: Boolean,
-    onProcessExpandedChange: (Boolean) -> Unit,
     selectedProcess: String,
     onSelectedProcessChange: (String) -> Unit,
 
-    defectExpanded: Boolean,
-    onDefectExpandedChange: (Boolean) -> Unit,
     selectedDefectReason: String,
     onSelectedDefectReasonChange: (String) -> Unit
 ) {
@@ -287,93 +317,118 @@ fun FilterSection(
             .padding(bottom = 16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        DropdownField(
+        SearchableDropdownField(
             label = "ALC 코드",
-            options = options,
-            expanded = alcExpanded,
-            onExpandedChange = onAlcExpandedChange,
+            options = alcOptions,
             selectedValue = selectedAlcCode,
             onValueSelected = onSelectedAlcCodeChange
         )
 
-        DropdownField(
+        SearchableDropdownField(
             label = "자재번호",
-            options = options,
-            expanded = materialExpanded,
-            onExpandedChange = onMaterialExpandedChange,
+            options = materialOptions,
             selectedValue = selectedMaterialNo,
             onValueSelected = onSelectedMaterialNoChange
         )
 
-        DropdownField(
+        SearchableDropdownField(
             label = "공급업체",
-            options = options,
-            expanded = supplierExpanded,
-            onExpandedChange = onSupplierExpandedChange,
+            options = supplierOptions,
             selectedValue = selectedSupplier,
             onValueSelected = onSelectedSupplierChange
         )
 
-        DropdownField(
+        SearchableDropdownField(
             label = "실장착공정",
-            options = options,
-            expanded = processExpanded,
-            onExpandedChange = onProcessExpandedChange,
+            options = processOptions,
             selectedValue = selectedProcess,
             onValueSelected = onSelectedProcessChange
         )
 
-        DropdownField(
+        SearchableDropdownField(
             label = "불량 사유",
-            options = options,
-            expanded = defectExpanded,
-            onExpandedChange = onDefectExpandedChange,
+            options = defectOptions,
             selectedValue = selectedDefectReason,
             onValueSelected = onSelectedDefectReasonChange
+        )
+
+        Text(
+            text = "불량",
+            fontSize = 28.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.Red
         )
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DropdownField(
+fun SearchableDropdownField(
     label: String,
     options: List<String>,
-    expanded: Boolean,
-    onExpandedChange: (Boolean) -> Unit,
     selectedValue: String,
     onValueSelected: (String) -> Unit
 ) {
+    var expanded by remember { mutableStateOf(false) }
+    var query by remember { mutableStateOf("") }
+
+    val filteredOptions = remember(query, options) {
+        if (query.isBlank()) {
+            options
+        } else {
+            options.filter { it.contains(query, ignoreCase = true) }
+        }
+    }
+
     ExposedDropdownMenuBox(
         expanded = expanded,
-        onExpandedChange = { onExpandedChange(!expanded) }
+        onExpandedChange = {
+            expanded = !expanded
+            if (expanded) {
+                query = ""
+            }
+        }
     ) {
         OutlinedTextField(
-            value = selectedValue,
-            onValueChange = {},
-            readOnly = true,
+            placeholder = { Text("선택하세요") },
+            value = if (expanded) query else selectedValue,
+            onValueChange = {
+                query = it
+                expanded = true
+            },
             label = { Text(label) },
+            singleLine = true,
             trailingIcon = {
                 ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
             },
             modifier = Modifier
                 .menuAnchor()
-                .fillMaxWidth(),
-            colors = TextFieldDefaults.colors()
+                .fillMaxWidth()
         )
 
         ExposedDropdownMenu(
             expanded = expanded,
-            onDismissRequest = { onExpandedChange(false) }
+            onDismissRequest = {
+                expanded = false
+                query = ""
+            }
         ) {
-            options.forEach { option ->
+            if (filteredOptions.isEmpty()) {
                 DropdownMenuItem(
-                    text = { Text(option) },
-                    onClick = {
-                        onValueSelected(option)
-                        onExpandedChange(false)
-                    }
+                    text = { Text("검색 결과 없음") },
+                    onClick = { }
                 )
+            } else {
+                filteredOptions.forEach { option ->
+                    DropdownMenuItem(
+                        text = { Text(option) },
+                        onClick = {
+                            onValueSelected(option)
+                            expanded = false
+                            query = ""
+                        }
+                    )
+                }
             }
         }
     }
@@ -384,16 +439,16 @@ fun ButtonSection(
     onRegisterClick: () -> Unit,
     onResetClick: () -> Unit
 ) {
-    Row(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(top = 4.dp, bottom = 16.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Button(
             onClick = { onRegisterClick() },
             modifier = Modifier
-                .weight(1f)
+                .fillMaxWidth()
                 .height(52.dp),
             shape = RoundedCornerShape(12.dp),
             colors = ButtonDefaults.buttonColors(
@@ -410,7 +465,7 @@ fun ButtonSection(
         Button(
             onClick = { onResetClick() },
             modifier = Modifier
-                .weight(1f)
+                .fillMaxWidth()
                 .height(52.dp),
             shape = RoundedCornerShape(12.dp),
             colors = ButtonDefaults.buttonColors(
@@ -423,88 +478,5 @@ fun ButtonSection(
                 fontSize = 18.sp
             )
         }
-    }
-}
-
-@Composable
-fun TableSection(
-    items: List<DefectItem>
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 12.dp)
-    ) {
-        Text(
-            text = "불량 정보",
-            fontSize = 18.sp,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(bottom = 10.dp)
-        )
-
-        TableHeader()
-
-        items.forEach { item ->
-            TableRow(item = item)
-        }
-    }
-}
-
-@Composable
-fun TableHeader() {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(Color(0xFFDDE3EA))
-            .border(1.dp, Color.Gray)
-            .padding(vertical = 10.dp, horizontal = 6.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        TableCell("id", 0.7f, true)
-        TableCell("alccode", 1.4f, true)
-        TableCell("materialNo", 1.1f, true)
-        TableCell("supplier", 1.4f, true)
-        TableCell("name", 1.0f, true)
-        TableCell("status", 1.6f, true)
-    }
-}
-
-@Composable
-fun TableRow(item: DefectItem) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(Color.White)
-            .border(1.dp, Color(0xFFCCCCCC))
-            .padding(vertical = 10.dp, horizontal = 6.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        TableCell(item.id, 0.7f, false)
-        TableCell(item.alccode, 1.4f, false)
-        TableCell(item.materialNo, 1.1f, false)
-        TableCell(item.supplier, 1.4f, false)
-        TableCell(item.name, 1.0f, false)
-        TableCell(item.status, 1.6f, false)
-    }
-}
-
-@Composable
-fun RowScope.TableCell(
-    text: String,
-    weight: Float,
-    isHeader: Boolean
-) {
-    Box(
-        modifier = Modifier
-            .weight(weight)
-            .padding(horizontal = 4.dp),
-        contentAlignment = Alignment.CenterStart
-    ) {
-        Text(
-            text = text,
-            fontSize = if (isHeader) 14.sp else 13.sp,
-            fontWeight = if (isHeader) FontWeight.Bold else FontWeight.Normal,
-            color = Color.Black
-        )
     }
 }
