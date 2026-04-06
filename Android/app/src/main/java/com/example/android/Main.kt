@@ -31,6 +31,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -41,6 +42,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.android.ui.theme.AndroidTheme
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.net.HttpURLConnection
@@ -82,18 +84,24 @@ fun MainScreenPreview() {
 fun MainScreen(
     onLogoutClick: () -> Unit
 ) {
+    val scope = rememberCoroutineScope()
+
     var alcOptions by remember { mutableStateOf(listOf<String>()) }
     var materialOptions by remember { mutableStateOf(listOf<String>()) }
     var supplierOptions by remember { mutableStateOf(listOf<String>()) }
     var processOptions by remember { mutableStateOf(listOf<String>()) }
+    var operaterOptions by remember { mutableStateOf(listOf<String>()) }
 
     var selectedAlcCode by remember { mutableStateOf("") }
     var selectedMaterialNo by remember { mutableStateOf("") }
     var selectedSupplier by remember { mutableStateOf("") }
     var selectedProcess by remember { mutableStateOf("") }
     var selectedDefectReason by remember { mutableStateOf("") }
+    var selectedOperator by remember { mutableStateOf("") }
 
     var showRegisterDialog by remember { mutableStateOf(false) }
+    var showResultDialog by remember { mutableStateOf(false) }
+    var resultMessage by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(true) }
 
     // 불량 사유는 일단 예시값
@@ -104,6 +112,72 @@ fun MainScreen(
         "파손",
         "기타"
     )
+
+    suspend fun registerDefectApi() {
+        try {
+            val result = withContext(Dispatchers.IO) {
+                val apiUrl = "http://10.0.2.2:7237/api/MaterialsControllers/register-defect"
+
+                Log.d("API_TEST", "호출 URL: $apiUrl")
+
+                val url = URL(apiUrl)
+                val connection = url.openConnection() as HttpURLConnection
+
+                try {
+                    connection.requestMethod = "POST"
+                    connection.connectTimeout = 5000
+                    connection.readTimeout = 5000
+                    connection.doOutput = true
+                    connection.setRequestProperty("Content-Type", "application/json; charset=UTF-8")
+
+                    val requestJson = JSONObject().apply {
+                        put("AlcCode", selectedAlcCode)
+                        put("MaterialNo", selectedMaterialNo)
+                        put("Supplier", selectedSupplier)
+                        put("Process", selectedProcess)
+                        put("DefectReason", selectedDefectReason)
+                        put("Operator", selectedOperator)
+                    }
+
+                    Log.d("API_TEST", "등록 요청값: $requestJson")
+
+                    connection.outputStream.use { outputStream ->
+                        outputStream.write(requestJson.toString().toByteArray(Charsets.UTF_8))
+                        outputStream.flush()
+                    }
+
+                    val responseCode = connection.responseCode
+                    Log.d("API_TEST", "응답 코드: $responseCode")
+
+                    val stream = if (responseCode in 200..299) {
+                        connection.inputStream
+                    } else {
+                        connection.errorStream
+                    }
+
+                    stream.bufferedReader().use { it.readText() }
+                } finally {
+                    connection.disconnect()
+                }
+            }
+
+            Log.d("API_TEST", "등록 응답값: $result")
+
+            val json = try {
+                JSONObject(result)
+            } catch (e: Exception) {
+                null
+            }
+
+            resultMessage = json?.optString("message", "불량 등록이 완료되었습니다.") ?: "불량 등록이 완료되었습니다."
+            showResultDialog = true
+
+        } catch (e: Exception) {
+            Log.e("API_TEST", "등록 에러", e)
+            resultMessage = "불량 등록 중 오류가 발생했습니다.\n${e.message}"
+            showResultDialog = true
+        }
+    }
 
     LaunchedEffect(Unit) {
         try {
@@ -143,18 +217,13 @@ fun MainScreen(
             val materialArray = json.getJSONArray("materialNoList")
             val supplierArray = json.getJSONArray("supplierList")
             val processArray = json.getJSONArray("processList")
+            val operaterArray = json.getJSONArray("operaterList")
 
             alcOptions = List(alcArray.length()) { index -> alcArray.getString(index) }
             materialOptions = List(materialArray.length()) { index -> materialArray.getString(index) }
             supplierOptions = List(supplierArray.length()) { index -> supplierArray.getString(index) }
             processOptions = List(processArray.length()) { index -> processArray.getString(index) }
-
-            // 초기값
-//            if (alcOptions.isNotEmpty()) selectedAlcCode = alcOptions.first()
-//            if (materialOptions.isNotEmpty()) selectedMaterialNo = materialOptions.first()
-//            if (supplierOptions.isNotEmpty()) selectedSupplier = supplierOptions.first()
-//            if (processOptions.isNotEmpty()) selectedProcess = processOptions.first()
-//            if (defectReasonOptions.isNotEmpty()) selectedDefectReason = defectReasonOptions.first()
+            operaterOptions = List(operaterArray.length()) { index -> operaterArray.getString(index) }
 
         } catch (e: Exception) {
             Log.e("API_TEST", "조회 에러", e)
@@ -176,12 +245,45 @@ fun MainScreen(
                             "자재번호: $selectedMaterialNo\n" +
                             "공급업체: $selectedSupplier\n" +
                             "실장착공정: $selectedProcess\n" +
-                            "불량 사유: $selectedDefectReason"
+//                            "이름: $selectedNameReason\n" +
+                            "불량 사유: $selectedDefectReason\n" +
+                            "담당자: $selectedOperator"
                 )
             },
             confirmButton = {
                 TextButton(
+                    onClick = {
+                        showRegisterDialog = false
+                        scope.launch {
+                            registerDefectApi()
+                        }
+                    }
+                ) {
+                    Text("확인")
+                }
+            },
+            dismissButton = {
+                TextButton(
                     onClick = { showRegisterDialog = false }
+                ) {
+                    Text("취소")
+                }
+            }
+        )
+    }
+
+    if (showResultDialog) {
+        AlertDialog(
+            onDismissRequest = { showResultDialog = false },
+            title = {
+                Text("결과")
+            },
+            text = {
+                Text(resultMessage)
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = { showResultDialog = false }
                 ) {
                     Text("확인")
                 }
@@ -209,48 +311,46 @@ fun MainScreen(
 //                modifier = Modifier.padding(vertical = 16.dp)
 //            )
 //        } else {
-            FilterSection(
-                alcOptions = alcOptions,
-                materialOptions = materialOptions,
-                supplierOptions = supplierOptions,
-                processOptions = processOptions,
-                defectOptions = defectReasonOptions,
+        FilterSection(
+            alcOptions = alcOptions,
+            materialOptions = materialOptions,
+            supplierOptions = supplierOptions,
+            processOptions = processOptions,
+            defectOptions = defectReasonOptions,
+            operaterOptions = operaterOptions,
 
-                selectedAlcCode = selectedAlcCode,
-                onSelectedAlcCodeChange = { selectedAlcCode = it },
+            selectedAlcCode = selectedAlcCode,
+            onSelectedAlcCodeChange = { selectedAlcCode = it },
 
-                selectedMaterialNo = selectedMaterialNo,
-                onSelectedMaterialNoChange = { selectedMaterialNo = it },
+            selectedMaterialNo = selectedMaterialNo,
+            onSelectedMaterialNoChange = { selectedMaterialNo = it },
 
-                selectedSupplier = selectedSupplier,
-                onSelectedSupplierChange = { selectedSupplier = it },
+            selectedSupplier = selectedSupplier,
+            onSelectedSupplierChange = { selectedSupplier = it },
 
-                selectedProcess = selectedProcess,
-                onSelectedProcessChange = { selectedProcess = it },
+            selectedProcess = selectedProcess,
+            onSelectedProcessChange = { selectedProcess = it },
 
-                selectedDefectReason = selectedDefectReason,
-                onSelectedDefectReasonChange = { selectedDefectReason = it }
-            )
+            selectedDefectReason = selectedDefectReason,
+            onSelectedDefectReasonChange = { selectedDefectReason = it },
 
-            ButtonSection(
-                onRegisterClick = {
-                    showRegisterDialog = true
-                },
-                onResetClick = {
-//                    selectedAlcCode = alcOptions.firstOrNull() ?: ""
-//                    selectedMaterialNo = materialOptions.firstOrNull() ?: ""
-//                    selectedSupplier = supplierOptions.firstOrNull() ?: ""
-//                    selectedProcess = processOptions.firstOrNull() ?: ""
-//                    selectedDefectReason = defectReasonOptions.firstOrNull() ?: ""
+            selectedOperator = selectedOperator,
+            onSelectedOperatorChange = { selectedOperator = it }
+        )
 
-                    selectedAlcCode = ""
-                    selectedMaterialNo = ""
-                    selectedSupplier = ""
-                    selectedProcess = ""
-                    selectedDefectReason = ""
-                }
-            )
-        }
+        ButtonSection(
+            onRegisterClick = {
+                showRegisterDialog = true
+            },
+            onResetClick = {
+                selectedAlcCode = ""
+                selectedMaterialNo = ""
+                selectedSupplier = ""
+                selectedProcess = ""
+                selectedDefectReason = ""
+            }
+        )
+    }
 //    }
 }
 
@@ -295,6 +395,7 @@ fun FilterSection(
     supplierOptions: List<String>,
     processOptions: List<String>,
     defectOptions: List<String>,
+    operaterOptions: List<String>,
 
     selectedAlcCode: String,
     onSelectedAlcCodeChange: (String) -> Unit,
@@ -309,7 +410,10 @@ fun FilterSection(
     onSelectedProcessChange: (String) -> Unit,
 
     selectedDefectReason: String,
-    onSelectedDefectReasonChange: (String) -> Unit
+    onSelectedDefectReasonChange: (String) -> Unit,
+
+    selectedOperator: String,
+    onSelectedOperatorChange: (String) -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -339,6 +443,13 @@ fun FilterSection(
         )
 
         SearchableDropdownField(
+            label = "이름",
+            options = defectOptions,
+            selectedValue = selectedDefectReason,
+            onValueSelected = onSelectedDefectReasonChange
+        )
+
+        SearchableDropdownField(
             label = "실장착공정",
             options = processOptions,
             selectedValue = selectedProcess,
@@ -352,12 +463,33 @@ fun FilterSection(
             onValueSelected = onSelectedDefectReasonChange
         )
 
-        Text(
-            text = "불량",
-            fontSize = 28.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color.Red
+        SearchableDropdownField(
+            label = "담당자",
+            options = operaterOptions,
+            selectedValue = selectedOperator,
+            onValueSelected = onSelectedOperatorChange
         )
+
+        SearchableDropdownField(
+            label = "비고1",
+            options = defectOptions,
+            selectedValue = selectedDefectReason,
+            onValueSelected = onSelectedDefectReasonChange
+        )
+
+        SearchableDropdownField(
+            label = "비고2",
+            options = defectOptions,
+            selectedValue = selectedDefectReason,
+            onValueSelected = onSelectedDefectReasonChange
+        )
+
+//        Text(
+//            text = "불량",
+//            fontSize = 28.sp,
+//            fontWeight = FontWeight.Bold,
+//            color = Color.Red
+//        )
     }
 }
 
@@ -374,9 +506,11 @@ fun SearchableDropdownField(
 
     val filteredOptions = remember(query, options) {
         if (query.isBlank()) {
-            options
+            emptyList()
         } else {
-            options.filter { it.contains(query, ignoreCase = true) }
+            options
+                .filter { it.contains(query, ignoreCase = true) }
+                .take(50)
         }
     }
 
@@ -384,19 +518,16 @@ fun SearchableDropdownField(
         expanded = expanded,
         onExpandedChange = {
             expanded = !expanded
-            if (expanded) {
-                query = ""
-            }
         }
     ) {
         OutlinedTextField(
-            placeholder = { Text("선택하세요") },
-            value = if (expanded) query else selectedValue,
+            value = query,
             onValueChange = {
                 query = it
                 expanded = true
             },
             label = { Text(label) },
+            placeholder = { Text("검색어를 입력하세요") },
             singleLine = true,
             trailingIcon = {
                 ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
@@ -410,24 +541,34 @@ fun SearchableDropdownField(
             expanded = expanded,
             onDismissRequest = {
                 expanded = false
-                query = ""
             }
         ) {
-            if (filteredOptions.isEmpty()) {
-                DropdownMenuItem(
-                    text = { Text("검색 결과 없음") },
-                    onClick = { }
-                )
-            } else {
-                filteredOptions.forEach { option ->
+            when {
+                query.isBlank() -> {
                     DropdownMenuItem(
-                        text = { Text(option) },
-                        onClick = {
-                            onValueSelected(option)
-                            expanded = false
-                            query = ""
-                        }
+                        text = { Text("검색어를 입력하세요") },
+                        onClick = { }
                     )
+                }
+
+                filteredOptions.isEmpty() -> {
+                    DropdownMenuItem(
+                        text = { Text("검색 결과 없음") },
+                        onClick = { }
+                    )
+                }
+
+                else -> {
+                    filteredOptions.forEach { option ->
+                        DropdownMenuItem(
+                            text = { Text(option) },
+                            onClick = {
+                                onValueSelected(option)
+                                query = option
+                                expanded = false
+                            }
+                        )
+                    }
                 }
             }
         }
