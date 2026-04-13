@@ -127,17 +127,11 @@ fun LoginScreen(
                 .padding(bottom = 20.dp),
             onLoginClick = {
                 // 테스트
-//                id = "1234"
-//                password = "1234"
-//                if (id == "1234" && password == "1234") {
-//                    errorMessage = ""
-//                    onLoginSuccess()
-//                } else {
-//                    errorMessage = "아이디 또는 비밀번호가 틀렸습니다."
-//                }
                 scope.launch {
-//                    val success = loginApi(id, password)
-                    val success = loginApi("test1", "test1")
+                    id = "test1"
+                    password = "test1"
+                    val success = loginApi(id, password)
+//                    val success = loginApi("test1", "test1")
 
                     if (success) {
                         errorMessage = ""
