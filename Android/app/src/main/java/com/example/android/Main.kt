@@ -6,33 +6,13 @@ import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.*
 import androidx.compose.material3.ExposedDropdownMenuDefaults
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -66,17 +46,11 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-@Preview(
-    showBackground = true,
-    showSystemUi = true,
-    device = "id:pixel_5"
-)
+@Preview(showBackground = true, showSystemUi = true)
 @Composable
 fun MainScreenPreview() {
     AndroidTheme {
-        MainScreen(
-            onLogoutClick = {}
-        )
+        MainScreen(onLogoutClick = {})
     }
 }
 
@@ -91,8 +65,6 @@ fun MainScreen(
     var supplierOptions by remember { mutableStateOf(listOf<String>()) }
     var processOptions by remember { mutableStateOf(listOf<String>()) }
     var operaterOptions by remember { mutableStateOf(listOf<String>()) }
-    var nameOptions by remember { mutableStateOf(listOf<String>()) }
-
 
     var selectedAlcCode by remember { mutableStateOf("") }
     var selectedMaterialNo by remember { mutableStateOf("") }
@@ -104,9 +76,7 @@ fun MainScreen(
     var showRegisterDialog by remember { mutableStateOf(false) }
     var showResultDialog by remember { mutableStateOf(false) }
     var resultMessage by remember { mutableStateOf("") }
-    var isLoading by remember { mutableStateOf(true) }
 
-    // 불량 사유는 일단 예시값
     val defectReasonOptions = listOf(
         "스크래치",
         "오염",
@@ -115,22 +85,125 @@ fun MainScreen(
         "기타"
     )
 
+    suspend fun loadInitialOptions() {
+        try {
+            val result = withContext(Dispatchers.IO) {
+                val apiUrl =
+                    "http://10.0.2.2:7237/api/MaterialsControllers/options"
+
+                val url = URL(apiUrl)
+                val connection =
+                    url.openConnection() as HttpURLConnection
+
+                try {
+                    connection.requestMethod = "GET"
+                    connection.connectTimeout = 5000
+                    connection.readTimeout = 5000
+
+                    connection.inputStream.bufferedReader().use {
+                        it.readText()
+                    }
+                } finally {
+                    connection.disconnect()
+                }
+            }
+
+            val json = JSONObject(result)
+
+            val alcArray = json.getJSONArray("alcCodeList")
+            val materialArray = json.getJSONArray("materialNoList")
+            val supplierArray = json.getJSONArray("supplierList")
+            val processArray = json.getJSONArray("processList")
+            val operaterArray = json.getJSONArray("operaterList")
+
+            alcOptions =
+                List(alcArray.length()) { i ->
+                    alcArray.getString(i)
+                }
+
+            materialOptions =
+                List(materialArray.length()) { i ->
+                    materialArray.getString(i)
+                }
+
+            supplierOptions =
+                List(supplierArray.length()) { i ->
+                    supplierArray.getString(i)
+                }
+
+            processOptions =
+                List(processArray.length()) { i ->
+                    processArray.getString(i)
+                }
+
+            operaterOptions =
+                List(operaterArray.length()) { i ->
+                    operaterArray.getString(i)
+                }
+
+        } catch (e: Exception) {
+            Log.e("INIT_API", "초기 로딩 오류", e)
+        }
+    }
+
+    suspend fun loadFilteredOptions(
+        alcCode: String,
+        materialNo: String,
+        supplier: String,
+        process: String
+    ): JSONObject {
+        return withContext(Dispatchers.IO) {
+
+            val apiUrl =
+                "http://10.0.2.2:7237/api/MaterialsControllers/filtered-options" +
+                        "?alcCode=$alcCode" +
+                        "&materialNo=$materialNo" +
+                        "&supplier=$supplier" +
+                        "&process=$process"
+
+            Log.d("FILTER_API", apiUrl)
+
+            val url = URL(apiUrl)
+            val connection =
+                url.openConnection() as HttpURLConnection
+
+            try {
+                connection.requestMethod = "GET"
+                connection.connectTimeout = 5000
+                connection.readTimeout = 5000
+
+                val result =
+                    connection.inputStream.bufferedReader().use {
+                        it.readText()
+                    }
+
+                JSONObject(result)
+
+            } finally {
+                connection.disconnect()
+            }
+        }
+    }
+
     suspend fun registerDefectApi() {
         try {
             val result = withContext(Dispatchers.IO) {
-                val apiUrl = "http://10.0.2.2:7237/api/MaterialsControllers/register-defect"
-
-                Log.d("API_TEST", "호출 URL: $apiUrl")
+                val apiUrl =
+                    "http://10.0.2.2:7237/api/MaterialsControllers/register-defect"
 
                 val url = URL(apiUrl)
-                val connection = url.openConnection() as HttpURLConnection
+                val connection =
+                    url.openConnection() as HttpURLConnection
 
                 try {
                     connection.requestMethod = "POST"
                     connection.connectTimeout = 5000
                     connection.readTimeout = 5000
                     connection.doOutput = true
-                    connection.setRequestProperty("Content-Type", "application/json; charset=UTF-8")
+                    connection.setRequestProperty(
+                        "Content-Type",
+                        "application/json; charset=UTF-8"
+                    )
 
                     val requestJson = JSONObject().apply {
                         put("AlcCode", selectedAlcCode)
@@ -141,115 +214,55 @@ fun MainScreen(
                         put("Operator", selectedOperator)
                     }
 
-                    Log.d("API_TEST", "등록 요청값: $requestJson")
-
-                    connection.outputStream.use { outputStream ->
-                        outputStream.write(requestJson.toString().toByteArray(Charsets.UTF_8))
-                        outputStream.flush()
+                    connection.outputStream.use {
+                        it.write(
+                            requestJson.toString()
+                                .toByteArray(Charsets.UTF_8)
+                        )
                     }
 
-                    val responseCode = connection.responseCode
-                    Log.d("API_TEST", "응답 코드: $responseCode")
-
-                    val stream = if (responseCode in 200..299) {
-                        connection.inputStream
-                    } else {
-                        connection.errorStream
+                    connection.inputStream.bufferedReader().use {
+                        it.readText()
                     }
 
-                    stream.bufferedReader().use { it.readText() }
                 } finally {
                     connection.disconnect()
                 }
             }
 
-            Log.d("API_TEST", "등록 응답값: $result")
-
-            val json = try {
-                JSONObject(result)
-            } catch (e: Exception) {
-                null
-            }
-
-            resultMessage = json?.optString("message", "불량 등록이 완료되었습니다.") ?: "불량 등록이 완료되었습니다."
+            val json = JSONObject(result)
+            resultMessage =
+                json.optString(
+                    "message",
+                    "불량 등록이 완료되었습니다."
+                )
             showResultDialog = true
 
         } catch (e: Exception) {
-            Log.e("API_TEST", "등록 에러", e)
-            resultMessage = "불량 등록 중 오류가 발생했습니다.\n${e.message}"
+            Log.e("REGISTER_API", "등록 오류", e)
+            resultMessage = "불량 등록 실패"
             showResultDialog = true
         }
     }
 
     LaunchedEffect(Unit) {
-        try {
-            val result = withContext(Dispatchers.IO) {
-                val apiUrl = "http://10.0.2.2:7237/api/MaterialsControllers/options"
-
-                Log.d("API_TEST", "호출 URL: $apiUrl")
-
-                val url = URL(apiUrl)
-                val connection = url.openConnection() as HttpURLConnection
-
-                try {
-                    connection.requestMethod = "GET"
-                    connection.connectTimeout = 5000
-                    connection.readTimeout = 5000
-
-                    val responseCode = connection.responseCode
-                    Log.d("API_TEST", "응답 코드: $responseCode")
-
-                    val stream = if (responseCode in 200..299) {
-                        connection.inputStream
-                    } else {
-                        connection.errorStream
-                    }
-
-                    stream.bufferedReader().use { it.readText() }
-                } finally {
-                    connection.disconnect()
-                }
-            }
-
-            Log.d("API_TEST", "응답값: $result")
-
-            val json = JSONObject(result)
-
-            val alcArray = json.getJSONArray("alcCodeList")
-            val materialArray = json.getJSONArray("materialNoList")
-            val supplierArray = json.getJSONArray("supplierList")
-            val processArray = json.getJSONArray("processList")
-            val nameArray = json.getJSONArray("nameList")
-            val operaterArray = json.getJSONArray("operaterList")
-
-            alcOptions = List(alcArray.length()) { index -> alcArray.getString(index) }
-            materialOptions = List(materialArray.length()) { index -> materialArray.getString(index) }
-            supplierOptions = List(supplierArray.length()) { index -> supplierArray.getString(index) }
-            processOptions = List(processArray.length()) { index -> processArray.getString(index) }
-            nameOptions = List(nameArray.length()) { index -> nameArray.getString(index) }
-            operaterOptions = List(operaterArray.length()) { index -> operaterArray.getString(index) }
-
-        } catch (e: Exception) {
-            Log.e("API_TEST", "조회 에러", e)
-        } finally {
-            isLoading = false
-        }
+        loadInitialOptions()
     }
 
     if (showRegisterDialog) {
         AlertDialog(
-            onDismissRequest = { showRegisterDialog = false },
+            onDismissRequest = {
+                showRegisterDialog = false
+            },
             title = {
                 Text("등록 확인")
             },
             text = {
                 Text(
-                    "선택한 항목으로 불량 등록을 진행합니다.\n\n" +
-                            "ALC 코드: $selectedAlcCode\n" +
+                    "ALC 코드: $selectedAlcCode\n" +
                             "자재번호: $selectedMaterialNo\n" +
                             "공급업체: $selectedSupplier\n" +
-                            "실장착공정: $selectedProcess\n" +
-//                            "이름: $selectedNameReason\n" +
+                            "공정: $selectedProcess\n" +
                             "불량 사유: $selectedDefectReason\n" +
                             "담당자: $selectedOperator"
                 )
@@ -268,17 +281,20 @@ fun MainScreen(
             },
             dismissButton = {
                 TextButton(
-                    onClick = { showRegisterDialog = false }
+                    onClick = {
+                        showRegisterDialog = false
+                    }
                 ) {
                     Text("취소")
                 }
             }
         )
     }
-
     if (showResultDialog) {
         AlertDialog(
-            onDismissRequest = { showResultDialog = false },
+            onDismissRequest = {
+                showResultDialog = false
+            },
             title = {
                 Text("결과")
             },
@@ -287,7 +303,9 @@ fun MainScreen(
             },
             confirmButton = {
                 TextButton(
-                    onClick = { showResultDialog = false }
+                    onClick = {
+                        showResultDialog = false
+                    }
                 ) {
                     Text("확인")
                 }
@@ -308,13 +326,6 @@ fun MainScreen(
             onLogoutClick = onLogoutClick
         )
 
-//        if (isLoading) {
-//            Text(
-//                text = "데이터 불러오는 중...",
-//                fontSize = 16.sp,
-//                modifier = Modifier.padding(vertical = 16.dp)
-//            )
-//        } else {
         FilterSection(
             alcOptions = alcOptions,
             materialOptions = materialOptions,
@@ -324,22 +335,112 @@ fun MainScreen(
             operaterOptions = operaterOptions,
 
             selectedAlcCode = selectedAlcCode,
-            onSelectedAlcCodeChange = { selectedAlcCode = it },
+            onSelectedAlcCodeChange = {
+                selectedAlcCode = it
+
+                selectedMaterialNo = ""
+                selectedSupplier = ""
+                selectedProcess = ""
+
+                scope.launch {
+                    val json = loadFilteredOptions(
+                        selectedAlcCode,
+                        "",
+                        "",
+                        ""
+                    )
+
+                    val materialArray =
+                        json.getJSONArray("materialNoList")
+                    materialOptions =
+                        List(materialArray.length()) { index ->
+                            materialArray.getString(index)
+                        }
+
+                    val supplierArray =
+                        json.getJSONArray("supplierList")
+                    supplierOptions =
+                        List(supplierArray.length()) { index ->
+                            supplierArray.getString(index)
+                        }
+
+                    val processArray =
+                        json.getJSONArray("processList")
+                    processOptions =
+                        List(processArray.length()) { index ->
+                            processArray.getString(index)
+                        }
+                }
+            },
 
             selectedMaterialNo = selectedMaterialNo,
-            onSelectedMaterialNoChange = { selectedMaterialNo = it },
+            onSelectedMaterialNoChange = {
+                selectedMaterialNo = it
+
+                selectedSupplier = ""
+                selectedProcess = ""
+
+                scope.launch {
+                    val json = loadFilteredOptions(
+                        selectedAlcCode,
+                        selectedMaterialNo,
+                        "",
+                        ""
+                    )
+
+                    val supplierArray =
+                        json.getJSONArray("supplierList")
+                    supplierOptions =
+                        List(supplierArray.length()) { index ->
+                            supplierArray.getString(index)
+                        }
+
+                    val processArray =
+                        json.getJSONArray("processList")
+                    processOptions =
+                        List(processArray.length()) { index ->
+                            processArray.getString(index)
+                        }
+                }
+            },
 
             selectedSupplier = selectedSupplier,
-            onSelectedSupplierChange = { selectedSupplier = it },
+            onSelectedSupplierChange = {
+                selectedSupplier = it
+
+                selectedProcess = ""
+
+                scope.launch {
+                    val json = loadFilteredOptions(
+                        selectedAlcCode,
+                        selectedMaterialNo,
+                        selectedSupplier,
+                        ""
+                    )
+
+                    val processArray =
+                        json.getJSONArray("processList")
+                    processOptions =
+                        List(processArray.length()) { index ->
+                            processArray.getString(index)
+                        }
+                }
+            },
 
             selectedProcess = selectedProcess,
-            onSelectedProcessChange = { selectedProcess = it },
+            onSelectedProcessChange = {
+                selectedProcess = it
+            },
 
             selectedDefectReason = selectedDefectReason,
-            onSelectedDefectReasonChange = { selectedDefectReason = it },
+            onSelectedDefectReasonChange = {
+                selectedDefectReason = it
+            },
 
             selectedOperator = selectedOperator,
-            onSelectedOperatorChange = { selectedOperator = it }
+            onSelectedOperatorChange = {
+                selectedOperator = it
+            }
         )
 
         ButtonSection(
@@ -352,10 +453,14 @@ fun MainScreen(
                 selectedSupplier = ""
                 selectedProcess = ""
                 selectedDefectReason = ""
+                selectedOperator = ""
+
+                scope.launch {
+                    loadInitialOptions()
+                }
             }
         )
     }
-//    }
 }
 
 @Composable
@@ -385,7 +490,11 @@ fun LogoutSection(
         contentAlignment = Alignment.CenterEnd
     ) {
         Button(
-            onClick = { onLogoutClick() }
+            onClick = { onLogoutClick() },
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Color(0xFF191970),
+                contentColor = Color.White
+            )
         ) {
             Text("로그아웃")
         }
@@ -447,13 +556,6 @@ fun FilterSection(
         )
 
         SearchableDropdownField(
-            label = "이름",
-            options = defectOptions,
-            selectedValue = selectedDefectReason,
-            onValueSelected = onSelectedDefectReasonChange
-        )
-
-        SearchableDropdownField(
             label = "실장착공정",
             options = processOptions,
             selectedValue = selectedProcess,
@@ -476,24 +578,17 @@ fun FilterSection(
 
         SearchableDropdownField(
             label = "비고1",
-            options = defectOptions,
-            selectedValue = selectedDefectReason,
-            onValueSelected = onSelectedDefectReasonChange
+            options = operaterOptions,
+            selectedValue = selectedOperator,
+            onValueSelected = onSelectedOperatorChange
         )
 
         SearchableDropdownField(
             label = "비고2",
-            options = defectOptions,
-            selectedValue = selectedDefectReason,
-            onValueSelected = onSelectedDefectReasonChange
+            options = operaterOptions,
+            selectedValue = selectedOperator,
+            onValueSelected = onSelectedOperatorChange
         )
-
-//        Text(
-//            text = "불량",
-//            fontSize = 28.sp,
-//            fontWeight = FontWeight.Bold,
-//            color = Color.Red
-//        )
     }
 }
 
@@ -506,17 +601,7 @@ fun SearchableDropdownField(
     onValueSelected: (String) -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
-    var query by remember { mutableStateOf("") }
-
-    val filteredOptions = remember(query, options) {
-        if (query.isBlank()) {
-            emptyList()
-        } else {
-            options
-                .filter { it.contains(query, ignoreCase = true) }
-                .take(50)
-        }
-    }
+    var query by remember { mutableStateOf(selectedValue) }
 
     ExposedDropdownMenuBox(
         expanded = expanded,
@@ -531,15 +616,21 @@ fun SearchableDropdownField(
                 expanded = true
             },
             label = { Text(label) },
-            placeholder = { Text("검색어를 입력하세요") },
             singleLine = true,
             trailingIcon = {
-                ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
+                ExposedDropdownMenuDefaults.TrailingIcon(
+                    expanded = expanded
+                )
             },
             modifier = Modifier
                 .menuAnchor()
                 .fillMaxWidth()
         )
+
+        val filteredOptions =
+            options.filter {
+                it.contains(query, ignoreCase = true)
+            }
 
         ExposedDropdownMenu(
             expanded = expanded,
@@ -547,33 +638,17 @@ fun SearchableDropdownField(
                 expanded = false
             }
         ) {
-            when {
-                query.isBlank() -> {
-                    DropdownMenuItem(
-                        text = { Text("검색어를 입력하세요") },
-                        onClick = { }
-                    )
-                }
-
-                filteredOptions.isEmpty() -> {
-                    DropdownMenuItem(
-                        text = { Text("검색 결과 없음") },
-                        onClick = { }
-                    )
-                }
-
-                else -> {
-                    filteredOptions.forEach { option ->
-                        DropdownMenuItem(
-                            text = { Text(option) },
-                            onClick = {
-                                onValueSelected(option)
-                                query = option
-                                expanded = false
-                            }
-                        )
+            filteredOptions.forEach { option ->
+                DropdownMenuItem(
+                    text = {
+                        Text(option)
+                    },
+                    onClick = {
+                        query = option
+                        onValueSelected(option)
+                        expanded = false
                     }
-                }
+                )
             }
         }
     }
@@ -614,7 +689,7 @@ fun ButtonSection(
                 .height(52.dp),
             shape = RoundedCornerShape(12.dp),
             colors = ButtonDefaults.buttonColors(
-                containerColor = Color(0xFF9E9E9E),
+                containerColor = Color(0xFF191970),
                 contentColor = Color.White
             )
         ) {
