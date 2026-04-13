@@ -36,6 +36,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.android.ui.theme.AndroidTheme
+import org.json.JSONObject
 
 class LoginActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -78,6 +79,7 @@ fun LoginScreen(
     var password by remember { mutableStateOf("") }
     var checked by remember { mutableStateOf(true) }
     var errorMessage by remember { mutableStateOf("") }
+    val scope = rememberCoroutineScope()
 
     Column(
         modifier = Modifier
@@ -125,19 +127,78 @@ fun LoginScreen(
                 .padding(bottom = 20.dp),
             onLoginClick = {
                 // 테스트
-                id = "1234"
-                password = "1234"
-                if (id == "1234" && password == "1234") {
-                    errorMessage = ""
-                    onLoginSuccess()
-                } else {
-                    errorMessage = "아이디 또는 비밀번호가 틀렸습니다."
+//                id = "1234"
+//                password = "1234"
+//                if (id == "1234" && password == "1234") {
+//                    errorMessage = ""
+//                    onLoginSuccess()
+//                } else {
+//                    errorMessage = "아이디 또는 비밀번호가 틀렸습니다."
+//                }
+                scope.launch {
+//                    val success = loginApi(id, password)
+                    val success = loginApi("test1", "test1")
+
+                    if (success) {
+                        errorMessage = ""
+                        onLoginSuccess()
+                    } else {
+                        errorMessage = "아이디 또는 비밀번호가 틀렸습니다."
+                    }
                 }
             },
             onSignupClick = {
                 errorMessage = "회원가입 기능은 아직 준비 중입니다."
             }
         )
+    }
+}
+
+suspend fun loginApi(id: String, pw: String): Boolean {
+    return try {
+        val result = withContext(Dispatchers.IO) {
+            val apiUrl = "http://10.0.2.2:7237/api/MaterialsControllers/login"
+
+            val url = URL(apiUrl)
+            val connection = url.openConnection() as HttpURLConnection
+
+            try {
+                connection.requestMethod = "POST"
+                connection.connectTimeout = 5000
+                connection.readTimeout = 5000
+                connection.doOutput = true
+                connection.setRequestProperty("Content-Type", "application/json")
+
+                val requestJson = JSONObject().apply {
+                    put("id", id)
+                    put("pw", pw)
+                }
+
+                connection.outputStream.use {
+                    it.write(requestJson.toString().toByteArray())
+                }
+
+                val responseCode = connection.responseCode
+
+                val stream = if (responseCode in 200..299) {
+                    connection.inputStream
+                } else {
+                    connection.errorStream
+                }
+
+                stream.bufferedReader().use { it.readText() }
+
+            } finally {
+                connection.disconnect()
+            }
+        }
+
+        val json = JSONObject(result)
+        json.optBoolean("success", false)
+
+    } catch (e: Exception) {
+        Log.e("LOGIN", "에러", e)
+        false
     }
 }
 

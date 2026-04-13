@@ -91,6 +91,8 @@ fun MainScreen(
     var supplierOptions by remember { mutableStateOf(listOf<String>()) }
     var processOptions by remember { mutableStateOf(listOf<String>()) }
     var operaterOptions by remember { mutableStateOf(listOf<String>()) }
+    var nameOptions by remember { mutableStateOf(listOf<String>()) }
+
 
     var selectedAlcCode by remember { mutableStateOf("") }
     var selectedMaterialNo by remember { mutableStateOf("") }
@@ -217,12 +219,14 @@ fun MainScreen(
             val materialArray = json.getJSONArray("materialNoList")
             val supplierArray = json.getJSONArray("supplierList")
             val processArray = json.getJSONArray("processList")
+            val nameArray = json.getJSONArray("nameList")
             val operaterArray = json.getJSONArray("operaterList")
 
             alcOptions = List(alcArray.length()) { index -> alcArray.getString(index) }
             materialOptions = List(materialArray.length()) { index -> materialArray.getString(index) }
             supplierOptions = List(supplierArray.length()) { index -> supplierArray.getString(index) }
             processOptions = List(processArray.length()) { index -> processArray.getString(index) }
+            nameOptions = List(nameArray.length()) { index -> nameArray.getString(index) }
             operaterOptions = List(operaterArray.length()) { index -> operaterArray.getString(index) }
 
         } catch (e: Exception) {
