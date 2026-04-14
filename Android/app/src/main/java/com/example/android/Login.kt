@@ -1,6 +1,7 @@
 package com.example.android
 
 import android.util.Log
+import android.content.Context
 import java.net.HttpURLConnection
 import kotlinx.coroutines.*
 import java.net.URL
@@ -80,6 +81,20 @@ fun LoginScreen(
     var checked by remember { mutableStateOf(true) }
     var errorMessage by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val prefs = context.getSharedPreferences("login_prefs", Context.MODE_PRIVATE)
+
+    LaunchedEffect(Unit) {
+        val savedId = prefs.getString("saved_id", "") ?: ""
+        val savedPw = prefs.getString("saved_pw", "") ?: ""
+        val savedChecked = prefs.getBoolean("checked", false)
+
+        if (savedChecked) {
+            id = savedId
+            password = savedPw
+            checked = true
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -126,18 +141,23 @@ fun LoginScreen(
                 .fillMaxWidth()
                 .padding(bottom = 20.dp),
             onLoginClick = {
-                // 테스트
                 scope.launch {
-                    id = "test1"
-                    password = "test1"
                     val success = loginApi(id, password)
-//                    val success = loginApi("test1", "test1")
 
                     if (success) {
                         errorMessage = ""
+
+                        if (checked) {
+                            prefs.edit()
+                                .putString("saved_id", id)
+                                .putString("saved_pw", password)
+                                .putBoolean("checked", true)
+                                .apply()
+                        } else {
+                            prefs.edit().clear().apply()
+                        }
+
                         onLoginSuccess()
-                    } else {
-                        errorMessage = "아이디 또는 비밀번호가 틀렸습니다."
                     }
                 }
             },
