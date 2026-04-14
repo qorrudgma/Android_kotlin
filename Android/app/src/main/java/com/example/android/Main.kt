@@ -86,6 +86,7 @@ fun MainScreen(
     var resultMessage by remember { mutableStateOf("") }
 
     var defectReasonFromServer by remember { mutableStateOf("") }
+    var defectOperaterFromServer by remember { mutableStateOf("") }
 
     val defectReasonOptions = listOf(
         "스크래치",
@@ -301,7 +302,11 @@ fun MainScreen(
             val json = JSONObject(result)
 //            val id = json.getInt("id")
             val status = json.getBoolean("status")
-            defectReasonFromServer = json.getString("reason")
+            defectReasonFromServer = json.optString("reason", "")
+            defectOperaterFromServer = json.optString("name", "")
+            Log.e("STATUS_API", "전체 응답 JSON => $result")
+            Log.e("STATUS_API", "defectReasonFromServer => $defectReasonFromServer")
+            Log.e("STATUS_API", "defectOperaterFromServer => $defectOperaterFromServer")
 
             materialStatus =
                 if (status) "불량" else "정상"
@@ -391,18 +396,33 @@ fun MainScreen(
                         append("자재번호: $selectedMaterialNo\n")
                         append("공급업체: $selectedSupplier\n")
                         append("공정: $selectedProcess\n")
-//                        append("불량 사유: $selectedDefectReason\n")
-                        append("불량 사유: $defectReasonFromServer\n")
-                        append("담당자: $selectedOperator\n")
+
+                        if (materialStatus == "불량") {
+                            append("불량 사유: ")
+                            withStyle(
+                                style = SpanStyle(color = Color.Red)
+                            ) {
+                                append("$defectReasonFromServer\n")
+                            }
+                            append("담당자: ")
+                            withStyle(
+                                style = SpanStyle(color = Color.Red)
+                            ) {
+                                append("$defectOperaterFromServer\n")
+                            }
+                        } else {
+                            append("불량 사유: $selectedDefectReason\n")
+                            append("담당자: $selectedOperator\n")
+                        }
+
                         append("상태: ")
 
                         withStyle(
                             style = SpanStyle(
-                                color =
-                                    if (materialStatus == "불량")
-                                        Color.Red
-                                    else
-                                        Color(0xFF006400)
+                                color = if (materialStatus == "불량")
+                                    Color.Red
+                                else
+                                    Color(0xFF006400)
                             )
                         ) {
                             append(materialStatus)
@@ -812,7 +832,9 @@ fun SearchableDropdownField(
     onValueSelected: (String) -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
-    var query by remember { mutableStateOf(selectedValue) }
+    var query by remember(selectedValue) {
+        mutableStateOf(selectedValue)
+    }
 
     ExposedDropdownMenuBox(
         expanded = expanded,
@@ -839,8 +861,16 @@ fun SearchableDropdownField(
         )
 
         val filteredOptions =
-            options.filter {
-                it.contains(query, ignoreCase = true)
+            if (query.isBlank()) {
+                if (options.size > 100) {
+                    options.take(50)
+                } else {
+                    options
+                }
+            } else {
+                options.filter {
+                    it.contains(query, ignoreCase = true)
+                }
             }
 
         ExposedDropdownMenu(
