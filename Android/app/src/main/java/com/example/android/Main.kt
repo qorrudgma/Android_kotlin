@@ -27,6 +27,13 @@ import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.QrCodeScanner
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.Icon
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.text.SpanStyle
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -65,6 +72,7 @@ fun MainScreen(
     var supplierOptions by remember { mutableStateOf(listOf<String>()) }
     var processOptions by remember { mutableStateOf(listOf<String>()) }
     var operaterOptions by remember { mutableStateOf(listOf<String>()) }
+    var materialStatus by remember { mutableStateOf("") }
 
     var selectedAlcCode by remember { mutableStateOf("") }
     var selectedMaterialNo by remember { mutableStateOf("") }
@@ -76,6 +84,8 @@ fun MainScreen(
     var showRegisterDialog by remember { mutableStateOf(false) }
     var showResultDialog by remember { mutableStateOf(false) }
     var resultMessage by remember { mutableStateOf("") }
+
+    var defectReasonFromServer by remember { mutableStateOf("") }
 
     val defectReasonOptions = listOf(
         "스크래치",
@@ -245,6 +255,123 @@ fun MainScreen(
         }
     }
 
+    suspend fun statusCheckApi() {
+        try {
+            val result = withContext(Dispatchers.IO) {
+                val apiUrl =
+                    "http://10.0.2.2:7237/api/MaterialsControllers/status-check"
+
+                val url = URL(apiUrl)
+                val connection =
+                    url.openConnection() as HttpURLConnection
+
+                try {
+                    connection.requestMethod = "POST"
+                    connection.connectTimeout = 5000
+                    connection.readTimeout = 5000
+                    connection.doOutput = true
+                    connection.setRequestProperty(
+                        "Content-Type",
+                        "application/json; charset=UTF-8"
+                    )
+
+                    val requestJson = JSONObject().apply {
+                        put("AlcCode", selectedAlcCode)
+                        put("MaterialNo", selectedMaterialNo)
+                        put("Supplier", selectedSupplier)
+                        put("Process", selectedProcess)
+                    }
+
+                    connection.outputStream.use {
+                        it.write(
+                            requestJson.toString()
+                                .toByteArray(Charsets.UTF_8)
+                        )
+                    }
+
+                    connection.inputStream.bufferedReader().use {
+                        it.readText()
+                    }
+
+                } finally {
+                    connection.disconnect()
+                }
+            }
+
+            val json = JSONObject(result)
+//            val id = json.getInt("id")
+            val status = json.getBoolean("status")
+            defectReasonFromServer = json.getString("reason")
+
+            materialStatus =
+                if (status) "불량" else "정상"
+
+        } catch (e: Exception) {
+            Log.e("STATUS_API", "상태 조회 오류", e)
+            materialStatus = "조회 실패"
+        }
+    }
+
+    suspend fun cancelDefectApi() {
+        try {
+            val result = withContext(Dispatchers.IO) {
+                val apiUrl =
+                    "http://10.0.2.2:7237/api/MaterialsControllers/cancel-defect"
+
+                val url = URL(apiUrl)
+                val connection =
+                    url.openConnection() as HttpURLConnection
+
+                try {
+                    connection.requestMethod = "POST"
+                    connection.connectTimeout = 5000
+                    connection.readTimeout = 5000
+                    connection.doOutput = true
+                    connection.setRequestProperty(
+                        "Content-Type",
+                        "application/json; charset=UTF-8"
+                    )
+
+                    val requestJson = JSONObject().apply {
+                        put("AlcCode", selectedAlcCode)
+                        put("MaterialNo", selectedMaterialNo)
+                        put("Supplier", selectedSupplier)
+                        put("Process", selectedProcess)
+                        put("DefectReason", selectedDefectReason)
+                        put("Operator", selectedOperator)
+                    }
+
+                    connection.outputStream.use {
+                        it.write(
+                            requestJson.toString()
+                                .toByteArray(Charsets.UTF_8)
+                        )
+                    }
+
+                    connection.inputStream.bufferedReader().use {
+                        it.readText()
+                    }
+
+                } finally {
+                    connection.disconnect()
+                }
+            }
+
+            val json = JSONObject(result)
+            resultMessage =
+                json.optString(
+                    "message",
+                    "불량 취소가 완료되었습니다."
+                )
+            showResultDialog = true
+
+        } catch (e: Exception) {
+            Log.e("REGISTER_API", "등록 오류", e)
+            resultMessage = "불량 취소 실패"
+            showResultDialog = true
+        }
+    }
+
     LaunchedEffect(Unit) {
         loadInitialOptions()
     }
@@ -259,12 +386,28 @@ fun MainScreen(
             },
             text = {
                 Text(
-                    "ALC 코드: $selectedAlcCode\n" +
-                            "자재번호: $selectedMaterialNo\n" +
-                            "공급업체: $selectedSupplier\n" +
-                            "공정: $selectedProcess\n" +
-                            "불량 사유: $selectedDefectReason\n" +
-                            "담당자: $selectedOperator"
+                    buildAnnotatedString {
+                        append("ALC 코드: $selectedAlcCode\n")
+                        append("자재번호: $selectedMaterialNo\n")
+                        append("공급업체: $selectedSupplier\n")
+                        append("공정: $selectedProcess\n")
+//                        append("불량 사유: $selectedDefectReason\n")
+                        append("불량 사유: $defectReasonFromServer\n")
+                        append("담당자: $selectedOperator\n")
+                        append("상태: ")
+
+                        withStyle(
+                            style = SpanStyle(
+                                color =
+                                    if (materialStatus == "불량")
+                                        Color.Red
+                                    else
+                                        Color(0xFF006400)
+                            )
+                        ) {
+                            append(materialStatus)
+                        }
+                    }
                 )
             },
             confirmButton = {
@@ -272,11 +415,22 @@ fun MainScreen(
                     onClick = {
                         showRegisterDialog = false
                         scope.launch {
-                            registerDefectApi()
+                            if (materialStatus == "불량") {
+                                // 불량일 때 취소 처리
+                                cancelDefectApi()
+                            } else {
+                                // 정상일 때 등록 처리
+                                registerDefectApi()
+                            }
                         }
                     }
                 ) {
-                    Text("확인")
+                    val isDefect = materialStatus == "불량"
+
+                    Text(
+                        text = if (isDefect) "취소하기" else "등록하기",
+                        color = if (isDefect) Color.Red else Color(0xFF006400)
+                    )
                 }
             },
             dismissButton = {
@@ -290,176 +444,233 @@ fun MainScreen(
             }
         )
     }
-    if (showResultDialog) {
-        AlertDialog(
-            onDismissRequest = {
-                showResultDialog = false
-            },
-            title = {
-                Text("결과")
-            },
-            text = {
-                Text(resultMessage)
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        showResultDialog = false
+    Box(
+        modifier = Modifier.fillMaxSize()
+    ){
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color(0xFFF5F6F8))
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp)
+        ) {
+            HeaderSection()
+
+            LogoutSection(
+                onLogoutClick = onLogoutClick
+            )
+
+            FilterSection(
+                alcOptions = alcOptions,
+                materialOptions = materialOptions,
+                supplierOptions = supplierOptions,
+                processOptions = processOptions,
+                defectOptions = defectReasonOptions,
+                operaterOptions = operaterOptions,
+
+                selectedAlcCode = selectedAlcCode,
+                onSelectedAlcCodeChange = {
+                    selectedAlcCode = it
+
+                    selectedMaterialNo = ""
+                    selectedSupplier = ""
+                    selectedProcess = ""
+
+                    scope.launch {
+                        val json = loadFilteredOptions(
+                            selectedAlcCode,
+                            "",
+                            "",
+                            ""
+                        )
+
+                        val materialArray =
+                            json.getJSONArray("materialNoList")
+                        materialOptions =
+                            List(materialArray.length()) { index ->
+                                materialArray.getString(index)
+                            }
+
+                        val supplierArray =
+                            json.getJSONArray("supplierList")
+                        supplierOptions =
+                            List(supplierArray.length()) { index ->
+                                supplierArray.getString(index)
+                            }
+
+                        val processArray =
+                            json.getJSONArray("processList")
+                        processOptions =
+                            List(processArray.length()) { index ->
+                                processArray.getString(index)
+                            }
                     }
-                ) {
-                    Text("확인")
+                },
+
+                selectedMaterialNo = selectedMaterialNo,
+                onSelectedMaterialNoChange = {
+                    selectedMaterialNo = it
+
+                    selectedSupplier = ""
+                    selectedProcess = ""
+
+                    scope.launch {
+                        val json = loadFilteredOptions(
+                            selectedAlcCode,
+                            selectedMaterialNo,
+                            "",
+                            ""
+                        )
+
+                        val supplierArray =
+                            json.getJSONArray("supplierList")
+                        supplierOptions =
+                            List(supplierArray.length()) { index ->
+                                supplierArray.getString(index)
+                            }
+
+                        val processArray =
+                            json.getJSONArray("processList")
+                        processOptions =
+                            List(processArray.length()) { index ->
+                                processArray.getString(index)
+                            }
+                    }
+                },
+
+                selectedSupplier = selectedSupplier,
+                onSelectedSupplierChange = {
+                    selectedSupplier = it
+
+                    selectedProcess = ""
+
+                    scope.launch {
+                        val json = loadFilteredOptions(
+                            selectedAlcCode,
+                            selectedMaterialNo,
+                            selectedSupplier,
+                            ""
+                        )
+
+                        val processArray =
+                            json.getJSONArray("processList")
+                        processOptions =
+                            List(processArray.length()) { index ->
+                                processArray.getString(index)
+                            }
+                    }
+                },
+
+                selectedProcess = selectedProcess,
+                onSelectedProcessChange = {
+                    selectedProcess = it
+                },
+
+                selectedDefectReason = selectedDefectReason,
+                onSelectedDefectReasonChange = {
+                    selectedDefectReason = it
+                },
+
+                selectedOperator = selectedOperator,
+                onSelectedOperatorChange = {
+                    selectedOperator = it
                 }
-            }
-        )
-    }
+            )
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color(0xFFF5F6F8))
-            .verticalScroll(rememberScrollState())
-            .padding(16.dp)
-    ) {
-        HeaderSection()
-
-        LogoutSection(
-            onLogoutClick = onLogoutClick
-        )
-
-        FilterSection(
-            alcOptions = alcOptions,
-            materialOptions = materialOptions,
-            supplierOptions = supplierOptions,
-            processOptions = processOptions,
-            defectOptions = defectReasonOptions,
-            operaterOptions = operaterOptions,
-
-            selectedAlcCode = selectedAlcCode,
-            onSelectedAlcCodeChange = {
-                selectedAlcCode = it
-
-                selectedMaterialNo = ""
-                selectedSupplier = ""
-                selectedProcess = ""
-
-                scope.launch {
-                    val json = loadFilteredOptions(
-                        selectedAlcCode,
-                        "",
-                        "",
-                        ""
-                    )
-
-                    val materialArray =
-                        json.getJSONArray("materialNoList")
-                    materialOptions =
-                        List(materialArray.length()) { index ->
-                            materialArray.getString(index)
+            ButtonSection(
+                onRegisterClick = {
+                    when {
+                        selectedAlcCode.isBlank() -> {
+                            resultMessage = "ALC 코드를 선택하세요."
+                            showResultDialog = true
                         }
 
-                    val supplierArray =
-                        json.getJSONArray("supplierList")
-                    supplierOptions =
-                        List(supplierArray.length()) { index ->
-                            supplierArray.getString(index)
+                        selectedMaterialNo.isBlank() -> {
+                            resultMessage = "자재번호를 선택하세요."
+                            showResultDialog = true
                         }
 
-                    val processArray =
-                        json.getJSONArray("processList")
-                    processOptions =
-                        List(processArray.length()) { index ->
-                            processArray.getString(index)
+                        selectedSupplier.isBlank() -> {
+                            resultMessage = "공급업체를 선택하세요."
+                            showResultDialog = true
                         }
+
+                        selectedProcess.isBlank() -> {
+                            resultMessage = "실장착공정을 선택하세요."
+                            showResultDialog = true
+                        }
+
+                        selectedDefectReason.isBlank() -> {
+                            resultMessage = "불량 사유를 선택하세요."
+                            showResultDialog = true
+                        }
+
+                        selectedOperator.isBlank() -> {
+                            resultMessage = "담당자를 선택하세요."
+                            showResultDialog = true
+                        }
+
+                        else -> {
+                            scope.launch {
+                                statusCheckApi()
+                                showRegisterDialog = true
+                            }
+                        }
+                    }
+                },
+                onResetClick = {
+                    selectedAlcCode = ""
+                    selectedMaterialNo = ""
+                    selectedSupplier = ""
+                    selectedProcess = ""
+                    selectedDefectReason = ""
+                    selectedOperator = ""
+
+                    scope.launch {
+                        loadInitialOptions()
+                    }
                 }
-            },
+            )
+        }
 
-            selectedMaterialNo = selectedMaterialNo,
-            onSelectedMaterialNoChange = {
-                selectedMaterialNo = it
-
-                selectedSupplier = ""
-                selectedProcess = ""
-
-                scope.launch {
-                    val json = loadFilteredOptions(
-                        selectedAlcCode,
-                        selectedMaterialNo,
-                        "",
-                        ""
-                    )
-
-                    val supplierArray =
-                        json.getJSONArray("supplierList")
-                    supplierOptions =
-                        List(supplierArray.length()) { index ->
-                            supplierArray.getString(index)
+        if (showResultDialog) {
+            AlertDialog(
+                onDismissRequest = {
+                    showResultDialog = false
+                },
+                title = {
+                    Text("선택해주세요.")
+                },
+                text = {
+                    Text(resultMessage)
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            showResultDialog = false
                         }
-
-                    val processArray =
-                        json.getJSONArray("processList")
-                    processOptions =
-                        List(processArray.length()) { index ->
-                            processArray.getString(index)
-                        }
+                    ) {
+                        Text("확인")
+                    }
                 }
+            )
+        }
+
+        FloatingActionButton(
+            onClick = {
+                Log.d("SCAN", "QR 스캔 버튼 클릭")
             },
-
-            selectedSupplier = selectedSupplier,
-            onSelectedSupplierChange = {
-                selectedSupplier = it
-
-                selectedProcess = ""
-
-                scope.launch {
-                    val json = loadFilteredOptions(
-                        selectedAlcCode,
-                        selectedMaterialNo,
-                        selectedSupplier,
-                        ""
-                    )
-
-                    val processArray =
-                        json.getJSONArray("processList")
-                    processOptions =
-                        List(processArray.length()) { index ->
-                            processArray.getString(index)
-                        }
-                }
-            },
-
-            selectedProcess = selectedProcess,
-            onSelectedProcessChange = {
-                selectedProcess = it
-            },
-
-            selectedDefectReason = selectedDefectReason,
-            onSelectedDefectReasonChange = {
-                selectedDefectReason = it
-            },
-
-            selectedOperator = selectedOperator,
-            onSelectedOperatorChange = {
-                selectedOperator = it
-            }
-        )
-
-        ButtonSection(
-            onRegisterClick = {
-                showRegisterDialog = true
-            },
-            onResetClick = {
-                selectedAlcCode = ""
-                selectedMaterialNo = ""
-                selectedSupplier = ""
-                selectedProcess = ""
-                selectedDefectReason = ""
-                selectedOperator = ""
-
-                scope.launch {
-                    loadInitialOptions()
-                }
-            }
-        )
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(20.dp),
+            containerColor = Color(0xFF191970)
+        ) {
+            Icon(
+                imageVector = Icons.Default.QrCodeScanner,
+                contentDescription = "QR Scan",
+                tint = Color.White
+            )
+        }
     }
 }
 
