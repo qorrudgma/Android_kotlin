@@ -331,52 +331,6 @@ fun MainScreen(
         }
     }
 
-    // QR 읽어서 처리하기
-    suspend fun readQR(qrValue: String) {
-        try {
-            Log.d("QR_readQR", "qrValue => $qrValue")
-
-            val parts = qrValue.split("<GS>")
-            val valuesAfterGs = parts.drop(1)
-
-            for (item in valuesAfterGs) {
-
-                if (item.isEmpty()) continue
-
-                val firstChar = item.first()
-                val remainingText = item.drop(1)
-
-                when (firstChar) {
-                    'S' -> {
-                        Log.d("QR_readQR", "ALC코드 => $remainingText")
-                        selectedAlcCode = remainingText
-                    }
-
-                    'P' -> {
-                        Log.d("QR_readQR", "자재번호 => $remainingText")
-                        selectedMaterialNo = remainingText
-                    }
-
-                    'V' -> {
-                        Log.d("QR_readQR", "공급업체 => $remainingText")
-                        selectedSupplier = remainingText
-                    }
-
-                    else -> {
-                        Log.d("QR_readQR", "알 수 없는 타입 => $item")
-                    }
-                }
-            }
-            selectedProcess = ""
-
-            scope.launch {
-                loadInitialOptions()
-            }
-        } catch (e: Exception) {
-            Log.e("QR_PARSE", "QR 파싱 오류", e)
-        }
-    }
-
     // 불량 등록취소 api
     suspend fun cancelDefectApi() {
         try {
@@ -505,6 +459,97 @@ fun MainScreen(
 
         } catch (e: Exception) {
             Log.e("DETAIL_API", "상세조회 오류", e)
+        }
+    }
+
+    // QR 읽어서 처리하기
+    suspend fun readQR(qrValue: String) {
+        try {
+            Log.d("QR_readQR", "qrValue => $qrValue")
+
+            selectedAlcCode = "없음"
+            selectedMaterialNo = "없음"
+            selectedSupplier = "없음"
+            selectedProcess = "없음"
+
+            val parts = qrValue.split("<GS>")
+            val valuesAfterGs = parts.drop(1)
+
+            for (item in valuesAfterGs) {
+
+                if (item.isEmpty()) continue
+
+                val firstChar = item.first()
+                val remainingText = item.drop(1)
+
+                when (firstChar) {
+                    'S' -> {
+                        selectedAlcCode =
+                            if (remainingText.isBlank()) "없음"
+                            else remainingText
+
+                        Log.d("QR_readQR", "ALC코드 => $selectedAlcCode")
+                    }
+
+                    'P' -> {
+                        selectedMaterialNo =
+                            if (remainingText.isBlank()) "없음"
+                            else remainingText
+
+                        Log.d("QR_readQR", "자재번호 => $selectedMaterialNo")
+                    }
+
+                    'V' -> {
+                        selectedSupplier =
+                            if (remainingText.isBlank()) "없음"
+                            else remainingText
+
+                        Log.d("QR_readQR", "공급업체 => $selectedSupplier")
+                    }
+
+                    else -> {
+                        Log.d("QR_readQR", "알 수 없는 타입 => $item")
+                    }
+                }
+            }
+
+            val json = loadFilteredOptions(
+                selectedAlcCode,
+                selectedMaterialNo,
+                selectedSupplier,
+                ""
+            )
+
+            val processArray = json.getJSONArray("processList")
+            processOptions = List(processArray.length()) {
+                processArray.getString(it)
+            }
+
+            selectedProcess =
+                if (processOptions.isNotEmpty())
+                    processOptions[0]
+                else
+                    "없음"
+
+            Log.d("QR_readQR", "자동 선택 Process => $selectedProcess")
+            detailApi()
+
+            // Detail 화면 이동
+            val intent = Intent(context, DetailActivity::class.java).apply {
+                putExtra("id", detailId)
+                putExtra("alcCode", selectedAlcCode)
+                putExtra("materialNo", selectedMaterialNo)
+                putExtra("supplier", selectedSupplier)
+                putExtra("process", selectedProcess)
+                putExtra("defectReason", detailDefectReason)
+                putExtra("operator", detailOperator)
+                putExtra("status", detailStatus)
+            }
+
+            context.startActivity(intent)
+
+        } catch (e: Exception) {
+            Log.e("QR_PARSE", "QR 파싱 오류", e)
         }
     }
 

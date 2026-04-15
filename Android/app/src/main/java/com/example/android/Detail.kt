@@ -39,11 +39,13 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
-
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
 class DetailActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -97,7 +99,11 @@ fun DetailScreen(
 ) {
     var showResultDialog by remember { mutableStateOf(false) }
     var resultMessage by remember { mutableStateOf("") }
-    val isDefect = status == "불량"
+    var currentStatus by remember { mutableStateOf(status) }
+    var currentDefectReason by remember { mutableStateOf(defectReason) }
+    var currentOperator by remember { mutableStateOf(operator) }
+
+    val isDefect = currentStatus == "불량"
     var selectedDefectReason by remember { mutableStateOf("") }
     var selectedOperator by remember { mutableStateOf("") }
     val context = LocalContext.current
@@ -151,6 +157,64 @@ fun DetailScreen(
 
         } catch (e: Exception) {
             Log.e("OPERATOR_API", "담당자 조회 오류", e)
+        }
+    }
+
+    suspend fun detailApi() {
+        try {
+            val result = withContext(Dispatchers.IO) {
+                val apiUrl =
+                    "${ApiSettings.getBaseUrl(context)}/api/MaterialsControllers/detail"
+
+                val url = URL(apiUrl)
+                val connection = url.openConnection() as HttpURLConnection
+
+                try {
+                    connection.requestMethod = "POST"
+                    connection.connectTimeout = 5000
+                    connection.readTimeout = 5000
+                    connection.doOutput = true
+                    connection.setRequestProperty(
+                        "Content-Type",
+                        "application/json; charset=UTF-8"
+                    )
+
+                    val requestJson = JSONObject().apply {
+                        put("AlcCode", alcCode)
+                        put("MaterialNo", materialNo)
+                        put("Supplier", supplier)
+                        put("Process", process)
+                    }
+
+                    connection.outputStream.use {
+                        it.write(
+                            requestJson.toString()
+                                .toByteArray(Charsets.UTF_8)
+                        )
+                    }
+
+                    connection.inputStream.bufferedReader().use {
+                        it.readText()
+                    }
+
+                } finally {
+                    connection.disconnect()
+                }
+            }
+
+            val json = JSONObject(result)
+
+            currentDefectReason =
+                json.optString("defectReason", "")
+
+            currentOperator =
+                json.optString("operater", "")
+
+            currentStatus =
+                json.optString("status", "")
+
+        } catch (e: Exception) {
+            Log.e("DETAIL_API", "상세조회 오류", e)
         }
     }
 
@@ -208,11 +272,14 @@ fun DetailScreen(
                     "불량 등록 완료"
                 )
 
+            detailApi()
             showResultDialog = true
 
         } catch (e: Exception) {
             Log.e("REGISTER_API", "등록 오류", e)
             resultMessage = "불량 등록 실패"
+
+            detailApi()
             showResultDialog = true
         }
     }
@@ -243,7 +310,7 @@ fun DetailScreen(
                         put("MaterialNo", materialNo)
                         put("Supplier", supplier)
                         put("Process", process)
-                        put("DefectReason", selectedDefectReason)
+                        put("DefectReason", "정상")
                         put("Operator", selectedOperator)
                     }
 
@@ -270,12 +337,17 @@ fun DetailScreen(
                     "message",
                     "불량 취소 완료"
                 )
-
+            scope.launch {
+                detailApi()
+            }
             showResultDialog = true
 
         } catch (e: Exception) {
             Log.e("CANCEL_API", "취소 오류", e)
             resultMessage = "불량 취소 실패"
+            scope.launch {
+                detailApi()
+            }
             showResultDialog = true
         }
     }
@@ -311,7 +383,6 @@ fun DetailScreen(
                         contentDescription = "뒤로가기"
                     )
                 }
-
                 Text(
                     text = "상세 화면",
                     fontSize = 24.sp
@@ -338,16 +409,16 @@ fun DetailScreen(
                     DetailItem("실장착공정", process)
 
                     if (isDefect) {
-                        DetailItem("담당자", operator)
-                        DetailItem("불량사유", defectReason, Color.Red)
-                        DetailItem("상태", status, Color.Red)
+                        DetailItem("담당자", currentOperator)
+                        DetailItem("불량사유", currentDefectReason, Color.Red)
+                        DetailItem("상태", currentStatus, Color.Red)
                     } else{
-                        DetailItem("상태", status, Color(0xFF006400))
+                        DetailItem("상태", currentStatus, Color(0xFF006400))
                     }
                 }
             }
 
-            if (isDefect) {
+            if (!isDefect) {
                 SearchableDropdownField(
                     label = "불량 사유",
                     options = defectOptions,
@@ -386,7 +457,11 @@ fun DetailScreen(
 
                 if (isDefect) {
                     Button(
-                        onClick = onDefectCancelClick,
+                        onClick = {
+                            scope.launch {
+                                cancelDefectApi()
+                            }
+                        },
                         modifier = Modifier.weight(1f),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = Color(0xFF191970)
@@ -396,7 +471,23 @@ fun DetailScreen(
                     }
                 } else{
                     Button(
-                        onClick = onDefectRegisterClick,
+                        onClick = {
+                            if (selectedDefectReason.isBlank()) {
+                                resultMessage = "불량 사유를 선택하세요."
+                                showResultDialog = true
+                                return@Button
+                            }
+
+                            if (selectedOperator.isBlank()) {
+                                resultMessage = "담당자를 선택하세요."
+                                showResultDialog = true
+                                return@Button
+                            }
+
+                            scope.launch {
+                                registerDefectApi()
+                            }
+                        },
                         modifier = Modifier.weight(1f),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = Color(0xFF191970)
@@ -405,7 +496,28 @@ fun DetailScreen(
                         Text("불량 등록")
                     }
                 }
-
+            }
+            if (showResultDialog) {
+                AlertDialog(
+                    onDismissRequest = {
+                        showResultDialog = false
+                    },
+                    title = {
+                        Text("알림")
+                    },
+                    text = {
+                        Text(resultMessage)
+                    },
+                    confirmButton = {
+                        TextButton(
+                            onClick = {
+                                showResultDialog = false
+                            }
+                        ) {
+                            Text("확인")
+                        }
+                    }
+                )
             }
         }
     }
