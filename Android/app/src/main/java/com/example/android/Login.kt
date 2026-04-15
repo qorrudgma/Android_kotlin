@@ -38,6 +38,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.android.ui.theme.AndroidTheme
 import org.json.JSONObject
+import androidx.core.content.edit
+import androidx.compose.ui.platform.LocalContext
 
 class LoginActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -81,7 +83,7 @@ fun LoginScreen(
     var checked by remember { mutableStateOf(true) }
     var errorMessage by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
-    val context = androidx.compose.ui.platform.LocalContext.current
+    val context = LocalContext.current
     val prefs = context.getSharedPreferences("login_prefs", Context.MODE_PRIVATE)
 
     LaunchedEffect(Unit) {
@@ -148,13 +150,15 @@ fun LoginScreen(
                         errorMessage = ""
 
                         if (checked) {
-                            prefs.edit()
-                                .putString("saved_id", id)
-                                .putString("saved_pw", password)
-                                .putBoolean("checked", true)
-                                .apply()
+                            prefs.edit {
+                                putString("saved_id", id)
+                                putString("saved_pw", password)
+                                putBoolean("checked", true)
+                            }
                         } else {
-                            prefs.edit().clear().apply()
+                            prefs.edit{
+                                clear()
+                            }
                         }
 
                         onLoginSuccess()

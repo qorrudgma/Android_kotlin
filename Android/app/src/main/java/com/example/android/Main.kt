@@ -35,7 +35,34 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.SpanStyle
 
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import com.journeyapps.barcodescanner.ScanContract
+import com.journeyapps.barcodescanner.ScanOptions
+import kotlinx.coroutines.launch
+
 class MainActivity : ComponentActivity() {
+
+    // qr스캔
+    private var onQrScannedCallback: ((String) -> Unit)? = null
+    private val qrLauncher = registerForActivityResult(ScanContract()) { result ->
+        if (result.contents != null) {
+            Log.d("QR_RESULT", result.contents)
+            onQrScannedCallback?.invoke(result.contents)
+        }
+    }
+
+    fun startQrScan() {
+        val options = ScanOptions().apply {
+            setPrompt("QR 코드를 스캔하세요")
+            setBeepEnabled(true)
+            setOrientationLocked(false)
+        }
+
+        qrLauncher.launch(options)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -46,6 +73,12 @@ class MainActivity : ComponentActivity() {
                         val intent = Intent(this@MainActivity, LoginActivity::class.java)
                         startActivity(intent)
                         finish()
+                    },
+                    onQrClick = {
+                        startQrScan()
+                    },
+                    onQrScanned = { callback ->
+                        onQrScannedCallback = callback
                     }
                 )
             }
@@ -57,13 +90,19 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun MainScreenPreview() {
     AndroidTheme {
-        MainScreen(onLogoutClick = {})
+        MainScreen(
+            onLogoutClick = {},
+            onQrClick = {},
+            onQrScanned = {}
+        )
     }
 }
 
 @Composable
 fun MainScreen(
-    onLogoutClick: () -> Unit
+    onLogoutClick: () -> Unit,
+    onQrClick: () -> Unit,
+    onQrScanned: ((String) -> Unit) -> Unit
 ) {
     val scope = rememberCoroutineScope()
 
@@ -72,6 +111,9 @@ fun MainScreen(
     var supplierOptions by remember { mutableStateOf(listOf<String>()) }
     var processOptions by remember { mutableStateOf(listOf<String>()) }
     var operaterOptions by remember { mutableStateOf(listOf<String>()) }
+    var OptionsOne by remember { mutableStateOf(listOf<String>()) }
+    var OptionsTwo by remember { mutableStateOf(listOf<String>()) }
+
     var materialStatus by remember { mutableStateOf("") }
 
     var selectedAlcCode by remember { mutableStateOf("") }
@@ -101,6 +143,7 @@ fun MainScreen(
             val result = withContext(Dispatchers.IO) {
                 val apiUrl =
                     "http://10.0.2.2:7237/api/MaterialsControllers/options"
+                Log.d("OPTION_API", "옵션 불러오기 시작")
 
                 val url = URL(apiUrl)
                 val connection =
@@ -192,6 +235,44 @@ fun MainScreen(
 
             } finally {
                 connection.disconnect()
+            }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        loadInitialOptions()
+
+        onQrScanned { qrValue ->
+            selectedMaterialNo = qrValue
+            selectedSupplier = ""
+            selectedProcess = ""
+
+            scope.launch {
+                try {
+                    val json = loadFilteredOptions(
+                        selectedAlcCode,
+                        selectedMaterialNo,
+                        "",
+                        ""
+                    )
+
+                    val supplierArray =
+                        json.getJSONArray("supplierList")
+                    supplierOptions =
+                        List(supplierArray.length()) {
+                            supplierArray.getString(it)
+                        }
+
+                    val processArray =
+                        json.getJSONArray("processList")
+                    processOptions =
+                        List(processArray.length()) {
+                            processArray.getString(it)
+                        }
+
+                } catch (e: Exception) {
+                    Log.e("QR_DEBUG", "QR 처리 오류", e)
+                }
             }
         }
     }
@@ -377,10 +458,6 @@ fun MainScreen(
         }
     }
 
-    LaunchedEffect(Unit) {
-        loadInitialOptions()
-    }
-
     if (showRegisterDialog) {
         AlertDialog(
             onDismissRequest = {
@@ -448,7 +525,7 @@ fun MainScreen(
                     val isDefect = materialStatus == "불량"
 
                     Text(
-                        text = if (isDefect) "취소하기" else "등록하기",
+                        text = if (isDefect) "불량 취소하기" else "불량 등록하기",
                         color = if (isDefect) Color.Red else Color(0xFF006400)
                     )
                 }
@@ -459,7 +536,7 @@ fun MainScreen(
                         showRegisterDialog = false
                     }
                 ) {
-                    Text("취소")
+                    Text("뒤로가기")
                 }
             }
         )
@@ -678,7 +755,8 @@ fun MainScreen(
 
         FloatingActionButton(
             onClick = {
-                Log.d("SCAN", "QR 스캔 버튼 클릭")
+                Log.d("QR_DEBUG", "QR 스캔 버튼 클릭")
+                onQrClick()
             },
             modifier = Modifier
                 .align(Alignment.BottomEnd)

@@ -40,8 +40,11 @@ android {
 }
 
 dependencies {
-    // 아이콘
+    // QR
     implementation("androidx.compose.material:material-icons-extended")
+    implementation("com.journeyapps:zxing-android-embedded:4.3.0")
+    implementation("com.google.zxing:core:3.5.1")
+
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
