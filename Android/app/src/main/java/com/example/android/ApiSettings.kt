@@ -26,14 +26,14 @@ object ApiSettings {
         val prefs =
             context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
 
-        return prefs.getString(KEY_IP, "10.0.2.2") ?: "10.0.2.2"
+        return prefs.getString(KEY_IP, "192.168.2.220") ?: "192.168.2.220"
     }
 
     fun getPort(context: Context): String {
         val prefs =
             context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
 
-        return prefs.getString(KEY_PORT, "7237") ?: "7237"
+        return prefs.getString(KEY_PORT, "8081") ?: "8081"
     }
 
     fun getBaseUrl(context: Context): String {

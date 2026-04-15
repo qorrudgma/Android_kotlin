@@ -208,7 +208,7 @@ suspend fun loginApi(
     return try {
         val result = withContext(Dispatchers.IO) {
             val apiUrl = "${ApiSettings.getBaseUrl(context)}/api/MaterialsControllers/login"
-//            val apiUrl = "http://10.0.2.2:7237/api/MaterialsControllers/login"
+//            val apiUrl = "http://192.168.2.220:8081/api/MaterialsControllers/login"
 
             val url = URL(apiUrl)
             val connection = url.openConnection() as HttpURLConnection
