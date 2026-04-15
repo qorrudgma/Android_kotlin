@@ -19,13 +19,13 @@ import androidx.compose.ui.unit.sp
 import com.example.android.ui.theme.AndroidTheme
 import androidx.compose.ui.platform.LocalContext
 
-class DetailActivity : ComponentActivity() {
+class SettingActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         setContent {
             AndroidTheme {
-                DetailScreen(
+                SettingScreen(
                     onBackClick = {
                         finish()
                     }
@@ -41,16 +41,16 @@ class DetailActivity : ComponentActivity() {
     device = "id:pixel_5"
 )
 @Composable
-fun DetailScreenPreview() {
+fun SettingScreenPreview() {
     AndroidTheme {
-        DetailScreen(
+        SettingScreen(
             onBackClick = {}
         )
     }
 }
 
 @Composable
-fun DetailScreen(
+fun SettingScreen(
     onBackClick: () -> Unit
 ) {
     val context = LocalContext.current

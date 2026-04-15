@@ -77,7 +77,7 @@ class MainActivity : ComponentActivity() {
                         finish()
                     },
                     onSettingClick ={
-                        val intent = Intent(this@MainActivity, DetailActivity::class.java)
+                        val intent = Intent(this@MainActivity, SettingActivity::class.java)
                         startActivity(intent)
                     },
                     onQrClick = {
@@ -1068,42 +1068,33 @@ fun ButtonSection(
     onRegisterClick: () -> Unit,
     onResetClick: () -> Unit
 ) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 4.dp, bottom = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+    // 하단 버튼
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Button(
-            onClick = { onRegisterClick() },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(52.dp),
-            shape = RoundedCornerShape(12.dp),
+            onClick = { onResetClick() },
+            modifier = Modifier.weight(1f),
             colors = ButtonDefaults.buttonColors(
-                containerColor = Color(0xFF191970),
-                contentColor = Color.White
+                containerColor = Color.Gray
             )
         ) {
             Text(
-                text = "불량 등록",
+                text = "리셋",
                 fontSize = 18.sp
             )
         }
 
         Button(
-            onClick = { onResetClick() },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(52.dp),
-            shape = RoundedCornerShape(12.dp),
+            onClick = { onRegisterClick() },
+            modifier = Modifier.weight(1f),
             colors = ButtonDefaults.buttonColors(
-                containerColor = Color(0xFF191970),
-                contentColor = Color.White
+                containerColor = Color(0xFF191970)
             )
         ) {
             Text(
-                text = "리셋",
+                text = "불량 등록",
                 fontSize = 18.sp
             )
         }

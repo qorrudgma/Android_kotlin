@@ -58,7 +58,7 @@ class LoginActivity : ComponentActivity() {
                         finish()
                     },
                     onSettingClick = {
-                        val intent = Intent(this@LoginActivity, DetailActivity::class.java)
+                        val intent = Intent(this@LoginActivity, SettingActivity::class.java)
                         startActivity(intent)
                     }
                 )
