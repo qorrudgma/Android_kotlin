@@ -29,6 +29,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.QrCodeScanner
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.ui.text.buildAnnotatedString
@@ -48,7 +49,7 @@ class MainActivity : ComponentActivity() {
     private var onQrScannedCallback: ((String) -> Unit)? = null
     private val qrLauncher = registerForActivityResult(ScanContract()) { result ->
         if (result.contents != null) {
-            Log.d("QR_RESULT", result.contents)
+            Log.d("QR_RESULT", "읽은 QR 값: ${result.contents}")
             onQrScannedCallback?.invoke(result.contents)
         }
     }
@@ -74,6 +75,10 @@ class MainActivity : ComponentActivity() {
                         startActivity(intent)
                         finish()
                     },
+                    onSettingClick ={
+                        val intent = Intent(this@MainActivity, DetailActivity::class.java)
+                        startActivity(intent)
+                    },
                     onQrClick = {
                         startQrScan()
                     },
@@ -92,6 +97,7 @@ fun MainScreenPreview() {
     AndroidTheme {
         MainScreen(
             onLogoutClick = {},
+            onSettingClick = {},
             onQrClick = {},
             onQrScanned = {}
         )
@@ -101,6 +107,7 @@ fun MainScreenPreview() {
 @Composable
 fun MainScreen(
     onLogoutClick: () -> Unit,
+    onSettingClick: () -> Unit,
     onQrClick: () -> Unit,
     onQrScanned: ((String) -> Unit) -> Unit
 ) {
@@ -138,6 +145,7 @@ fun MainScreen(
         "기타"
     )
 
+    // 초기 옵션 api
     suspend fun loadInitialOptions() {
         try {
             val result = withContext(Dispatchers.IO) {
@@ -200,6 +208,7 @@ fun MainScreen(
         }
     }
 
+    // 옵션 선택시 개수 줄이는 api
     suspend fun loadFilteredOptions(
         alcCode: String,
         materialNo: String,
@@ -239,44 +248,7 @@ fun MainScreen(
         }
     }
 
-    LaunchedEffect(Unit) {
-        loadInitialOptions()
-
-        onQrScanned { qrValue ->
-            selectedMaterialNo = qrValue
-            selectedSupplier = ""
-            selectedProcess = ""
-
-            scope.launch {
-                try {
-                    val json = loadFilteredOptions(
-                        selectedAlcCode,
-                        selectedMaterialNo,
-                        "",
-                        ""
-                    )
-
-                    val supplierArray =
-                        json.getJSONArray("supplierList")
-                    supplierOptions =
-                        List(supplierArray.length()) {
-                            supplierArray.getString(it)
-                        }
-
-                    val processArray =
-                        json.getJSONArray("processList")
-                    processOptions =
-                        List(processArray.length()) {
-                            processArray.getString(it)
-                        }
-
-                } catch (e: Exception) {
-                    Log.e("QR_DEBUG", "QR 처리 오류", e)
-                }
-            }
-        }
-    }
-
+    // 불량등록 하는 api
     suspend fun registerDefectApi() {
         try {
             val result = withContext(Dispatchers.IO) {
@@ -337,6 +309,7 @@ fun MainScreen(
         }
     }
 
+    // 불량 상태 확인하는 api
     suspend fun statusCheckApi() {
         try {
             val result = withContext(Dispatchers.IO) {
@@ -398,6 +371,53 @@ fun MainScreen(
         }
     }
 
+    // QR 읽어서 처리하기
+    suspend fun readQR(qrValue: String) {
+        try {
+            Log.d("QR_readQR", "qrValue => $qrValue")
+
+            val parts = qrValue.split("<GS>")
+            val valuesAfterGs = parts.drop(1)
+
+            for (item in valuesAfterGs) {
+
+                if (item.isEmpty()) continue
+
+                val firstChar = item.first()
+                val remainingText = item.drop(1)
+
+                when (firstChar) {
+                    'S' -> {
+                        Log.d("QR_readQR", "ALC코드 => $remainingText")
+                        selectedAlcCode = remainingText
+                    }
+
+                    'P' -> {
+                        Log.d("QR_readQR", "자재번호 => $remainingText")
+                        selectedMaterialNo = remainingText
+                    }
+
+                    'V' -> {
+                        Log.d("QR_readQR", "공급업체 => $remainingText")
+                        selectedSupplier = remainingText
+                    }
+
+                    else -> {
+                        Log.d("QR_readQR", "알 수 없는 타입 => $item")
+                    }
+                }
+            }
+            selectedProcess = ""
+
+            scope.launch {
+                loadInitialOptions()
+            }
+        } catch (e: Exception) {
+            Log.e("QR_PARSE", "QR 파싱 오류", e)
+        }
+    }
+
+    // 불량 등록취소 api
     suspend fun cancelDefectApi() {
         try {
             val result = withContext(Dispatchers.IO) {
@@ -458,6 +478,17 @@ fun MainScreen(
         }
     }
 
+    LaunchedEffect(Unit) {
+        loadInitialOptions()
+
+        onQrScanned { qrValue ->
+            scope.launch {
+                readQR(qrValue)
+            }
+        }
+    }
+
+    // 등록이나 취소 시 내용 확인하는 팝업 창
     if (showRegisterDialog) {
         AlertDialog(
             onDismissRequest = {
@@ -541,6 +572,8 @@ fun MainScreen(
             }
         )
     }
+
+    // 기본 화면
     Box(
         modifier = Modifier.fillMaxSize()
     ){
@@ -551,11 +584,12 @@ fun MainScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp)
         ) {
-            HeaderSection()
-
             LogoutSection(
-                onLogoutClick = onLogoutClick
+                onLogoutClick = onLogoutClick,
+                onSettingClick = onSettingClick
             )
+
+            HeaderSection()
 
             FilterSection(
                 alcOptions = alcOptions,
@@ -788,16 +822,42 @@ fun HeaderSection() {
     }
 }
 
+//@Composable
+//fun LogoutSection(
+//    onLogoutClick: () -> Unit
+//) {
+//    Box(
+//        modifier = Modifier
+//            .fillMaxWidth()
+//            .padding(bottom = 16.dp),
+//        contentAlignment = Alignment.CenterStart
+//    ) {
+//        Button(
+//            onClick = { onLogoutClick() },
+//            colors = ButtonDefaults.buttonColors(
+//                containerColor = Color(0xFF191970),
+//                contentColor = Color.White
+//            )
+//        ) {
+//            Text("로그아웃")
+//        }
+//    }
+//}
+
 @Composable
 fun LogoutSection(
-    onLogoutClick: () -> Unit
+    onLogoutClick: () -> Unit,
+    onSettingClick: () -> Unit
 ) {
-    Box(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(bottom = 16.dp),
-        contentAlignment = Alignment.CenterEnd
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
     ) {
+
+        // 왼쪽 로그아웃
         Button(
             onClick = { onLogoutClick() },
             colors = ButtonDefaults.buttonColors(
@@ -806,6 +866,17 @@ fun LogoutSection(
             )
         ) {
             Text("로그아웃")
+        }
+
+        // 오른쪽 설정 아이콘
+        IconButton(
+            onClick = { onSettingClick() }
+        ) {
+            Icon(
+                imageVector = Icons.Default.Settings,
+                contentDescription = "설정",
+                tint = Color(0xFF191970)
+            )
         }
     }
 }

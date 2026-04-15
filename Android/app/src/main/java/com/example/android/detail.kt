@@ -4,12 +4,12 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -24,7 +24,11 @@ class DetailActivity : ComponentActivity() {
 
         setContent {
             AndroidTheme {
-                DetailScreen()
+                DetailScreen(
+                    onBackClick = {
+                        finish()
+                    }
+                )
             }
         }
     }
@@ -35,34 +39,127 @@ class DetailActivity : ComponentActivity() {
     showSystemUi = true,
     device = "id:pixel_5"
 )
-
 @Composable
 fun DetailScreenPreview() {
     AndroidTheme {
         DetailScreen(
+            onBackClick = {}
         )
     }
 }
 
 @Composable
-fun DetailScreen() {
-    Column(
+fun DetailScreen(
+    onBackClick: () -> Unit
+) {
+    var ip by remember { mutableStateOf("") }
+    var port by remember { mutableStateOf("") }
+    var showDialog by remember { mutableStateOf(false) }
+
+    Box(
         modifier = Modifier
             .fillMaxSize()
             .background(Color(0xFFF5F6F8))
-            .padding(20.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+            .padding(20.dp)
     ) {
-        Text(
-            text = "디테일 화면",
-            fontSize = 28.sp
-        )
 
-        Text(
-            text = "항목 선택 후 넘어온 화면입니다.",
-            fontSize = 18.sp,
-            modifier = Modifier.padding(top = 12.dp)
-        )
+        Column(
+            modifier = Modifier.fillMaxSize()
+        ) {
+
+            // 상단 뒤로가기 + 제목
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 30.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(
+                    onClick = { onBackClick() }
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.ArrowBack,
+                        contentDescription = "뒤로가기"
+                    )
+                }
+
+                Text(
+                    text = "디테일 화면",
+                    fontSize = 24.sp
+                )
+            }
+
+            // IP 입력창
+            OutlinedTextField(
+                value = ip,
+                onValueChange = { ip = it },
+                label = {
+                    Text("IP")
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 20.dp),
+                singleLine = true,
+                shape = RoundedCornerShape(12.dp)
+            )
+
+            // Port 입력창
+            OutlinedTextField(
+                value = port,
+                onValueChange = { port = it },
+                label = {
+                    Text("Port")
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 30.dp),
+                singleLine = true,
+                shape = RoundedCornerShape(12.dp)
+            )
+
+            // 적용 버튼
+            Button(
+                onClick = {
+                    showDialog = true
+                },
+                modifier = Modifier
+                    .align(Alignment.End)
+                    .height(52.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFF191970),
+                    contentColor = Color.White
+                )
+            ) {
+                Text(
+                    text = "적용",
+                    fontSize = 18.sp
+                )
+            }
+        }
+
+        // 적용 완료 팝업
+        if (showDialog) {
+            AlertDialog(
+                onDismissRequest = {
+                    showDialog = false
+                },
+                title = {
+                    Text("알림")
+                },
+                text = {
+                    Text("적용되었습니다.")
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            showDialog = false
+                        }
+                    ) {
+                        Text("확인")
+                    }
+                }
+            )
+        }
     }
 }
