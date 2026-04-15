@@ -139,6 +139,11 @@ fun MainScreen(
     var defectReasonFromServer by remember { mutableStateOf("") }
     var defectOperaterFromServer by remember { mutableStateOf("") }
 
+    var detailId by remember { mutableStateOf(0) }
+    var detailDefectReason by remember { mutableStateOf("") }
+    var detailOperator by remember { mutableStateOf("") }
+    var detailStatus by remember { mutableStateOf("") }
+
     val defectReasonOptions = listOf(
         "스크래치",
         "오염",
@@ -497,6 +502,74 @@ fun MainScreen(
         }
     }
 
+    // 디테일 가기전 조회
+    suspend fun detailApi() {
+        try {
+            Log.d("DETAIL_API","DetailApi")
+            val result = withContext(Dispatchers.IO) {
+                val apiUrl =
+                    "${ApiSettings.getBaseUrl(context)}/api/MaterialsControllers/detail"
+
+                val url = URL(apiUrl)
+                val connection = url.openConnection() as HttpURLConnection
+
+                Log.d("DETAIL_API","selectedAlcCode => $selectedAlcCode")
+                Log.d("DETAIL_API","selectedMaterialNo => $selectedMaterialNo")
+                Log.d("DETAIL_API","selectedSupplier => $selectedSupplier")
+                Log.d("DETAIL_API","selectedProcess => $selectedProcess")
+
+                try {
+                    connection.requestMethod = "POST"
+                    connection.connectTimeout = 5000
+                    connection.readTimeout = 5000
+                    connection.doOutput = true
+                    connection.setRequestProperty(
+                        "Content-Type",
+                        "application/json; charset=UTF-8"
+                    )
+
+                    val requestJson = JSONObject().apply {
+                        put("AlcCode", selectedAlcCode)
+                        put("MaterialNo", selectedMaterialNo)
+                        put("Supplier", selectedSupplier)
+                        put("Process", selectedProcess)
+                    }
+
+                    connection.outputStream.use {
+                        it.write(
+                            requestJson.toString()
+                                .toByteArray(Charsets.UTF_8)
+                        )
+                    }
+
+                    connection.inputStream.bufferedReader().use {
+                        it.readText()
+                    }
+
+                } finally {
+                    connection.disconnect()
+                }
+            }
+
+            val json = JSONObject(result)
+
+            detailId = json.getInt("id")
+            detailDefectReason = json.optString("defectReason", "")
+            detailOperator = json.optString("operater", "")
+            detailStatus = json.optString("status", "")
+
+            Log.d("DETAIL_API", "id=$detailId")
+            Log.d("DETAIL_API", "reason=$detailDefectReason")
+            Log.d("DETAIL_API", "operator=$detailOperator")
+            Log.d("DETAIL_API", "status=$detailStatus")
+
+
+
+        } catch (e: Exception) {
+            Log.e("DETAIL_API", "상세조회 오류", e)
+        }
+    }
+
     LaunchedEffect(Unit) {
         loadInitialOptions()
 
@@ -615,7 +688,6 @@ fun MainScreen(
                 materialOptions = materialOptions,
                 supplierOptions = supplierOptions,
                 processOptions = processOptions,
-                defectOptions = defectReasonOptions,
                 operaterOptions = operaterOptions,
 
                 selectedAlcCode = selectedAlcCode,
@@ -716,11 +788,6 @@ fun MainScreen(
                     selectedProcess = it
                 },
 
-                selectedDefectReason = selectedDefectReason,
-                onSelectedDefectReasonChange = {
-                    selectedDefectReason = it
-                },
-
                 selectedOperator = selectedOperator,
                 onSelectedOperatorChange = {
                     selectedOperator = it
@@ -750,20 +817,22 @@ fun MainScreen(
                             showResultDialog = true
                         }
 
-                        selectedDefectReason.isBlank() -> {
-                            resultMessage = "불량 사유를 선택하세요."
-                            showResultDialog = true
-                        }
-
-                        selectedOperator.isBlank() -> {
-                            resultMessage = "담당자를 선택하세요."
-                            showResultDialog = true
-                        }
-
                         else -> {
                             scope.launch {
-                                statusCheckApi()
-                                showRegisterDialog = true
+                                detailApi()
+
+                                val intent = Intent(context, DetailActivity::class.java).apply {
+                                    putExtra("id", detailId)
+                                    putExtra("alcCode", selectedAlcCode)
+                                    putExtra("materialNo", selectedMaterialNo)
+                                    putExtra("supplier", selectedSupplier)
+                                    putExtra("process", selectedProcess)
+                                    putExtra("defectReason", detailDefectReason)
+                                    putExtra("operator", detailOperator)
+                                    putExtra("status", detailStatus)
+                                }
+
+                                context.startActivity(intent)
                             }
                         }
                     }
@@ -841,28 +910,6 @@ fun HeaderSection() {
     }
 }
 
-//@Composable
-//fun LogoutSection(
-//    onLogoutClick: () -> Unit
-//) {
-//    Box(
-//        modifier = Modifier
-//            .fillMaxWidth()
-//            .padding(bottom = 16.dp),
-//        contentAlignment = Alignment.CenterStart
-//    ) {
-//        Button(
-//            onClick = { onLogoutClick() },
-//            colors = ButtonDefaults.buttonColors(
-//                containerColor = Color(0xFF191970),
-//                contentColor = Color.White
-//            )
-//        ) {
-//            Text("로그아웃")
-//        }
-//    }
-//}
-
 @Composable
 fun LogoutSection(
     onLogoutClick: () -> Unit,
@@ -906,7 +953,6 @@ fun FilterSection(
     materialOptions: List<String>,
     supplierOptions: List<String>,
     processOptions: List<String>,
-    defectOptions: List<String>,
     operaterOptions: List<String>,
 
     selectedAlcCode: String,
@@ -920,9 +966,6 @@ fun FilterSection(
 
     selectedProcess: String,
     onSelectedProcessChange: (String) -> Unit,
-
-    selectedDefectReason: String,
-    onSelectedDefectReasonChange: (String) -> Unit,
 
     selectedOperator: String,
     onSelectedOperatorChange: (String) -> Unit
@@ -959,20 +1002,6 @@ fun FilterSection(
             options = processOptions,
             selectedValue = selectedProcess,
             onValueSelected = onSelectedProcessChange
-        )
-
-        SearchableDropdownField(
-            label = "불량 사유",
-            options = defectOptions,
-            selectedValue = selectedDefectReason,
-            onValueSelected = onSelectedDefectReasonChange
-        )
-
-        SearchableDropdownField(
-            label = "담당자",
-            options = operaterOptions,
-            selectedValue = selectedOperator,
-            onValueSelected = onSelectedOperatorChange
         )
 
         SearchableDropdownField(
@@ -1094,7 +1123,7 @@ fun ButtonSection(
             )
         ) {
             Text(
-                text = "불량 등록",
+                text = "검색하기",
                 fontSize = 18.sp
             )
         }

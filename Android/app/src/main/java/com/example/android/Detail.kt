@@ -34,6 +34,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.android.ui.theme.AndroidTheme
+import androidx.compose.runtime.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import android.util.Log
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import org.json.JSONObject
+import java.net.HttpURLConnection
+import java.net.URL
 
 class DetailActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -83,6 +92,63 @@ fun DetailScreen(
     onRegisterClick: () -> Unit
 ) {
     val isDefect = status == "불량"
+    var selectedDefectReason by remember { mutableStateOf("") }
+    var selectedOperator by remember { mutableStateOf("") }
+    val context = LocalContext.current
+    val defectOptions = listOf(
+        "스크래치",
+        "오염",
+        "변형",
+        "파손",
+        "기타"
+    )
+
+    var operaterOptions by remember {
+        mutableStateOf(listOf<String>())
+    }
+
+    suspend fun operatorApi() {
+        try {
+            val result = withContext(Dispatchers.IO) {
+
+                val apiUrl =
+                    "${ApiSettings.getBaseUrl(context)}/api/MaterialsControllers/operator"
+
+                val url = URL(apiUrl)
+                val connection = url.openConnection() as HttpURLConnection
+
+                try {
+                    connection.requestMethod = "GET"
+                    connection.connectTimeout = 5000
+                    connection.readTimeout = 5000
+
+                    connection.inputStream.bufferedReader().use {
+                        it.readText()
+                    }
+
+                } finally {
+                    connection.disconnect()
+                }
+            }
+
+            val json = JSONObject(result)
+            val operatorArray = json.getJSONArray("operatorList")
+
+            operaterOptions =
+                List(operatorArray.length()) { i ->
+                    operatorArray.getString(i)
+                }
+
+            Log.d("OPERATOR_API", "담당자 목록: $operaterOptions")
+
+        } catch (e: Exception) {
+            Log.e("OPERATOR_API", "담당자 조회 오류", e)
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        operatorApi()
+    }
 
     Box(
         modifier = Modifier
@@ -91,7 +157,9 @@ fun DetailScreen(
             .padding(20.dp)
     ) {
         Column(
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
         ) {
 
             // 상단 뒤로가기 + 제목
@@ -136,12 +204,33 @@ fun DetailScreen(
                     DetailItem("실장착공정", process)
 
                     if (isDefect) {
-                        DetailItem("불량사유", defectReason)
                         DetailItem("담당자", operator)
+                        DetailItem("불량사유", defectReason, Color.Red)
+                        DetailItem("상태", status, Color.Red)
+                    } else{
+                        DetailItem("상태", status, Color(0xFF006400))
                     }
-
-                    DetailItem("상태", status)
                 }
+            }
+
+            if (isDefect) {
+                SearchableDropdownField(
+                    label = "불량 사유",
+                    options = defectOptions,
+                    selectedValue = selectedDefectReason,
+                    onValueSelected = {
+                        selectedDefectReason = it
+                    }
+                )
+
+                SearchableDropdownField(
+                    label = "담당자",
+                    options = operaterOptions,
+                    selectedValue = selectedOperator,
+                    onValueSelected = {
+                        selectedOperator = it
+                    }
+                )
             }
 
             Spacer(modifier = Modifier.weight(1f))
@@ -161,15 +250,28 @@ fun DetailScreen(
                     Text("뒤로가기")
                 }
 
-                Button(
-                    onClick = onRegisterClick,
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF191970)
-                    )
-                ) {
-                    Text("등록하기")
+                if (isDefect) {
+                    Button(
+                        onClick = onRegisterClick,
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF191970)
+                        )
+                    ) {
+                        Text("불량 취소")
+                    }
+                } else{
+                    Button(
+                        onClick = onRegisterClick,
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF191970)
+                        )
+                    ) {
+                        Text("불량 등록")
+                    }
                 }
+
             }
         }
     }
@@ -178,7 +280,8 @@ fun DetailScreen(
 @Composable
 fun DetailItem(
     label: String,
-    value: String
+    value: String,
+    valueColor: Color = Color.Black
 ) {
     Column(
         modifier = Modifier.padding(bottom = 16.dp)
@@ -192,9 +295,9 @@ fun DetailItem(
         Spacer(modifier = Modifier.height(4.dp))
 
         Text(
-            text = "$value",
+            text = value,
             fontSize = 20.sp,
-            color = Color.Black,
+            color = valueColor,
             fontWeight = FontWeight.Medium
         )
     }
