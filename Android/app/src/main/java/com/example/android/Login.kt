@@ -20,11 +20,15 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextFieldDefaults
@@ -52,6 +56,10 @@ class LoginActivity : ComponentActivity() {
                         val intent = Intent(this@LoginActivity, MainActivity::class.java)
                         startActivity(intent)
                         finish()
+                    },
+                    onSettingClick = {
+                        val intent = Intent(this@LoginActivity, DetailActivity::class.java)
+                        startActivity(intent)
                     }
                 )
             }
@@ -69,14 +77,16 @@ class LoginActivity : ComponentActivity() {
 fun LoginScreenPreview() {
     AndroidTheme {
         LoginScreen(
-            onLoginSuccess = {}
+            onLoginSuccess = {},
+            onSettingClick = {}
         )
     }
 }
 
 @Composable
 fun LoginScreen(
-    onLoginSuccess: () -> Unit
+    onLoginSuccess: () -> Unit,
+    onSettingClick: () -> Unit
 ) {
     var id by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -104,10 +114,28 @@ fun LoginScreen(
             .background(Color(0xFFF5F6F8))
             .padding(horizontal = 20.dp)
     ) {
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 16.dp),
+            horizontalArrangement = Arrangement.End
+        ) {
+            IconButton(
+                onClick = { onSettingClick() }
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Settings,
+                    contentDescription = "설정",
+                    tint = Color(0xFF191970)
+                )
+            }
+        }
+
         LoginHeaderSection(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(120.dp)
+                .height(50.dp)
         )
 
         LoginTitleSection(
@@ -144,7 +172,7 @@ fun LoginScreen(
                 .padding(bottom = 20.dp),
             onLoginClick = {
                 scope.launch {
-                    val success = loginApi(id, password)
+                    val success = loginApi(context, id, password)
 
                     if (success) {
                         errorMessage = ""
@@ -156,7 +184,7 @@ fun LoginScreen(
                                 putBoolean("checked", true)
                             }
                         } else {
-                            prefs.edit{
+                            prefs.edit {
                                 clear()
                             }
                         }
@@ -172,10 +200,15 @@ fun LoginScreen(
     }
 }
 
-suspend fun loginApi(id: String, pw: String): Boolean {
+suspend fun loginApi(
+    context: Context,
+    id: String,
+    pw: String
+): Boolean {
     return try {
         val result = withContext(Dispatchers.IO) {
-            val apiUrl = "http://10.0.2.2:7237/api/MaterialsControllers/login"
+            val apiUrl = "${ApiSettings.getBaseUrl(context)}/api/MaterialsControllers/login"
+//            val apiUrl = "http://10.0.2.2:7237/api/MaterialsControllers/login"
 
             val url = URL(apiUrl)
             val connection = url.openConnection() as HttpURLConnection

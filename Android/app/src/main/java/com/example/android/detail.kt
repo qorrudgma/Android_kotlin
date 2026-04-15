@@ -17,6 +17,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.android.ui.theme.AndroidTheme
+import androidx.compose.ui.platform.LocalContext
 
 class DetailActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -52,9 +53,15 @@ fun DetailScreenPreview() {
 fun DetailScreen(
     onBackClick: () -> Unit
 ) {
-    var ip by remember { mutableStateOf("") }
-    var port by remember { mutableStateOf("") }
+    val context = LocalContext.current
+    var ip by remember {
+        mutableStateOf(ApiSettings.getIp(context))
+    }
+    var port by remember {
+        mutableStateOf(ApiSettings.getPort(context))
+    }
     var showDialog by remember { mutableStateOf(false) }
+
 
     Box(
         modifier = Modifier
@@ -84,7 +91,7 @@ fun DetailScreen(
                 }
 
                 Text(
-                    text = "디테일 화면",
+                    text = "설정 화면",
                     fontSize = 24.sp
                 )
             }
@@ -120,6 +127,7 @@ fun DetailScreen(
             // 적용 버튼
             Button(
                 onClick = {
+                    ApiSettings.saveServerInfo(context, ip, port)
                     showDialog = true
                 },
                 modifier = Modifier

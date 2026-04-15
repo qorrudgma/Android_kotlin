@@ -39,6 +39,7 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
 import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
 import kotlinx.coroutines.launch
@@ -112,6 +113,7 @@ fun MainScreen(
     onQrScanned: ((String) -> Unit) -> Unit
 ) {
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
 
     var alcOptions by remember { mutableStateOf(listOf<String>()) }
     var materialOptions by remember { mutableStateOf(listOf<String>()) }
@@ -150,7 +152,7 @@ fun MainScreen(
         try {
             val result = withContext(Dispatchers.IO) {
                 val apiUrl =
-                    "http://10.0.2.2:7237/api/MaterialsControllers/options"
+                    "${ApiSettings.getBaseUrl(context)}/api/MaterialsControllers/options"
                 Log.d("OPTION_API", "옵션 불러오기 시작")
 
                 val url = URL(apiUrl)
@@ -208,6 +210,19 @@ fun MainScreen(
         }
     }
 
+    fun reset(){
+        selectedAlcCode = ""
+        selectedMaterialNo = ""
+        selectedSupplier = ""
+        selectedProcess = ""
+        selectedDefectReason = ""
+        selectedOperator = ""
+
+        scope.launch {
+            loadInitialOptions()
+        }
+    }
+
     // 옵션 선택시 개수 줄이는 api
     suspend fun loadFilteredOptions(
         alcCode: String,
@@ -218,7 +233,7 @@ fun MainScreen(
         return withContext(Dispatchers.IO) {
 
             val apiUrl =
-                "http://10.0.2.2:7237/api/MaterialsControllers/filtered-options" +
+                "${ApiSettings.getBaseUrl(context)}/api/MaterialsControllers/filtered-options" +
                         "?alcCode=$alcCode" +
                         "&materialNo=$materialNo" +
                         "&supplier=$supplier" +
@@ -253,7 +268,7 @@ fun MainScreen(
         try {
             val result = withContext(Dispatchers.IO) {
                 val apiUrl =
-                    "http://10.0.2.2:7237/api/MaterialsControllers/register-defect"
+                    "${ApiSettings.getBaseUrl(context)}/api/MaterialsControllers/register-defect"
 
                 val url = URL(apiUrl)
                 val connection =
@@ -306,6 +321,8 @@ fun MainScreen(
             Log.e("REGISTER_API", "등록 오류", e)
             resultMessage = "불량 등록 실패"
             showResultDialog = true
+        }finally {
+            reset()
         }
     }
 
@@ -314,7 +331,7 @@ fun MainScreen(
         try {
             val result = withContext(Dispatchers.IO) {
                 val apiUrl =
-                    "http://10.0.2.2:7237/api/MaterialsControllers/status-check"
+                    "${ApiSettings.getBaseUrl(context)}/api/MaterialsControllers/status-check"
 
                 val url = URL(apiUrl)
                 val connection =
@@ -422,7 +439,7 @@ fun MainScreen(
         try {
             val result = withContext(Dispatchers.IO) {
                 val apiUrl =
-                    "http://10.0.2.2:7237/api/MaterialsControllers/cancel-defect"
+                    "${ApiSettings.getBaseUrl(context)}/api/MaterialsControllers/cancel-defect"
 
                 val url = URL(apiUrl)
                 val connection =
@@ -475,6 +492,8 @@ fun MainScreen(
             Log.e("REGISTER_API", "등록 오류", e)
             resultMessage = "불량 취소 실패"
             showResultDialog = true
+        } finally {
+            reset()
         }
     }
 
