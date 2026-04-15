@@ -70,8 +70,11 @@ class DetailActivity : ComponentActivity() {
                     onBackClick = {
                         finish()
                     },
-                    onRegisterClick = {
+                    onDefectRegisterClick = {
                         // 나중에 등록 API 연결
+                    },
+                    onDefectCancelClick = {
+                        // 나중에 취소 API 연결
                     }
                 )
             }
@@ -89,8 +92,11 @@ fun DetailScreen(
     operator: String,
     status: String,
     onBackClick: () -> Unit,
-    onRegisterClick: () -> Unit
+    onDefectRegisterClick: () -> Unit,
+    onDefectCancelClick: () -> Unit
 ) {
+    var showResultDialog by remember { mutableStateOf(false) }
+    var resultMessage by remember { mutableStateOf("") }
     val isDefect = status == "불량"
     var selectedDefectReason by remember { mutableStateOf("") }
     var selectedOperator by remember { mutableStateOf("") }
@@ -102,11 +108,13 @@ fun DetailScreen(
         "파손",
         "기타"
     )
+    val scope = rememberCoroutineScope()
 
     var operaterOptions by remember {
         mutableStateOf(listOf<String>())
     }
 
+    // 담당자 조회 api
     suspend fun operatorApi() {
         try {
             val result = withContext(Dispatchers.IO) {
@@ -143,6 +151,132 @@ fun DetailScreen(
 
         } catch (e: Exception) {
             Log.e("OPERATOR_API", "담당자 조회 오류", e)
+        }
+    }
+
+    // 불량 등록 api
+    suspend fun registerDefectApi() {
+        try {
+            val result = withContext(Dispatchers.IO) {
+                val apiUrl =
+                    "${ApiSettings.getBaseUrl(context)}/api/MaterialsControllers/register-defect"
+
+                val url = URL(apiUrl)
+                val connection =
+                    url.openConnection() as HttpURLConnection
+
+                try {
+                    connection.requestMethod = "POST"
+                    connection.connectTimeout = 5000
+                    connection.readTimeout = 5000
+                    connection.doOutput = true
+                    connection.setRequestProperty(
+                        "Content-Type",
+                        "application/json; charset=UTF-8"
+                    )
+
+                    val requestJson = JSONObject().apply {
+                        put("AlcCode", alcCode)
+                        put("MaterialNo", materialNo)
+                        put("Supplier", supplier)
+                        put("Process", process)
+                        put("DefectReason", selectedDefectReason)
+                        put("Operator", selectedOperator)
+                    }
+
+                    connection.outputStream.use {
+                        it.write(
+                            requestJson.toString()
+                                .toByteArray(Charsets.UTF_8)
+                        )
+                    }
+
+                    connection.inputStream.bufferedReader().use {
+                        it.readText()
+                    }
+
+                } finally {
+                    connection.disconnect()
+                }
+            }
+
+            val json = JSONObject(result)
+
+            resultMessage =
+                json.optString(
+                    "message",
+                    "불량 등록 완료"
+                )
+
+            showResultDialog = true
+
+        } catch (e: Exception) {
+            Log.e("REGISTER_API", "등록 오류", e)
+            resultMessage = "불량 등록 실패"
+            showResultDialog = true
+        }
+    }
+
+    // 불량 등록 취소 api
+    suspend fun cancelDefectApi() {
+        try {
+            val result = withContext(Dispatchers.IO) {
+                val apiUrl =
+                    "${ApiSettings.getBaseUrl(context)}/api/MaterialsControllers/cancel-defect"
+
+                val url = URL(apiUrl)
+                val connection =
+                    url.openConnection() as HttpURLConnection
+
+                try {
+                    connection.requestMethod = "POST"
+                    connection.connectTimeout = 5000
+                    connection.readTimeout = 5000
+                    connection.doOutput = true
+                    connection.setRequestProperty(
+                        "Content-Type",
+                        "application/json; charset=UTF-8"
+                    )
+
+                    val requestJson = JSONObject().apply {
+                        put("AlcCode", alcCode)
+                        put("MaterialNo", materialNo)
+                        put("Supplier", supplier)
+                        put("Process", process)
+                        put("DefectReason", selectedDefectReason)
+                        put("Operator", selectedOperator)
+                    }
+
+                    connection.outputStream.use {
+                        it.write(
+                            requestJson.toString()
+                                .toByteArray(Charsets.UTF_8)
+                        )
+                    }
+
+                    connection.inputStream.bufferedReader().use {
+                        it.readText()
+                    }
+
+                } finally {
+                    connection.disconnect()
+                }
+            }
+
+            val json = JSONObject(result)
+
+            resultMessage =
+                json.optString(
+                    "message",
+                    "불량 취소 완료"
+                )
+
+            showResultDialog = true
+
+        } catch (e: Exception) {
+            Log.e("CANCEL_API", "취소 오류", e)
+            resultMessage = "불량 취소 실패"
+            showResultDialog = true
         }
     }
 
@@ -252,7 +386,7 @@ fun DetailScreen(
 
                 if (isDefect) {
                     Button(
-                        onClick = onRegisterClick,
+                        onClick = onDefectCancelClick,
                         modifier = Modifier.weight(1f),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = Color(0xFF191970)
@@ -262,7 +396,7 @@ fun DetailScreen(
                     }
                 } else{
                     Button(
-                        onClick = onRegisterClick,
+                        onClick = onDefectRegisterClick,
                         modifier = Modifier.weight(1f),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = Color(0xFF191970)
@@ -320,7 +454,8 @@ fun DetailScreenPreview() {
             operator = "홍길동",
             status = "불량",
             onBackClick = {},
-            onRegisterClick = {}
+            onDefectRegisterClick = {},
+            onDefectCancelClick = {}
         )
     }
 }

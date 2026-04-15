@@ -331,68 +331,6 @@ fun MainScreen(
         }
     }
 
-    // 불량 상태 확인하는 api
-    suspend fun statusCheckApi() {
-        try {
-            val result = withContext(Dispatchers.IO) {
-                val apiUrl =
-                    "${ApiSettings.getBaseUrl(context)}/api/MaterialsControllers/status-check"
-
-                val url = URL(apiUrl)
-                val connection =
-                    url.openConnection() as HttpURLConnection
-
-                try {
-                    connection.requestMethod = "POST"
-                    connection.connectTimeout = 5000
-                    connection.readTimeout = 5000
-                    connection.doOutput = true
-                    connection.setRequestProperty(
-                        "Content-Type",
-                        "application/json; charset=UTF-8"
-                    )
-
-                    val requestJson = JSONObject().apply {
-                        put("AlcCode", selectedAlcCode)
-                        put("MaterialNo", selectedMaterialNo)
-                        put("Supplier", selectedSupplier)
-                        put("Process", selectedProcess)
-                    }
-
-                    connection.outputStream.use {
-                        it.write(
-                            requestJson.toString()
-                                .toByteArray(Charsets.UTF_8)
-                        )
-                    }
-
-                    connection.inputStream.bufferedReader().use {
-                        it.readText()
-                    }
-
-                } finally {
-                    connection.disconnect()
-                }
-            }
-
-            val json = JSONObject(result)
-//            val id = json.getInt("id")
-            val status = json.getBoolean("status")
-            defectReasonFromServer = json.optString("reason", "")
-            defectOperaterFromServer = json.optString("name", "")
-            Log.e("STATUS_API", "전체 응답 JSON => $result")
-            Log.e("STATUS_API", "defectReasonFromServer => $defectReasonFromServer")
-            Log.e("STATUS_API", "defectOperaterFromServer => $defectOperaterFromServer")
-
-            materialStatus =
-                if (status) "불량" else "정상"
-
-        } catch (e: Exception) {
-            Log.e("STATUS_API", "상태 조회 오류", e)
-            materialStatus = "조회 실패"
-        }
-    }
-
     // QR 읽어서 처리하기
     suspend fun readQR(qrValue: String) {
         try {
