@@ -1,5 +1,6 @@
 package com.example.android
 
+import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.util.Log
@@ -30,39 +31,41 @@ import java.net.URL
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.SpanStyle
-
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
-import com.journeyapps.barcodescanner.ScanContract
-import com.journeyapps.barcodescanner.ScanOptions
-import kotlinx.coroutines.launch
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 
 class MainActivity : ComponentActivity() {
 
     // qr스캔
     private var onQrScannedCallback: ((String) -> Unit)? = null
-    private val qrLauncher = registerForActivityResult(ScanContract()) { result ->
-        if (result.contents != null) {
-            Log.d("QR_RESULT", "읽은 QR 값: ${result.contents}")
-            onQrScannedCallback?.invoke(result.contents)
+
+    private val qrScanLauncher =
+        registerForActivityResult(
+            androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
+        ) { result ->
+
+            if (result.resultCode == RESULT_OK) {
+                val qrValue =
+                    result.data?.getStringExtra("QR_RESULT")
+
+                qrValue?.let {
+                    onQrScannedCallback?.invoke(it)
+                }
+            }
         }
-    }
 
     fun startQrScan() {
-        val options = ScanOptions().apply {
-            setPrompt("QR 코드를 스캔하세요")
-            setBeepEnabled(true)
-            setOrientationLocked(false)
-        }
-
-        qrLauncher.launch(options)
+        val intent = Intent(this, QRScannerActivity::class.java)
+        qrScanLauncher.launch(intent)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -72,6 +75,9 @@ class MainActivity : ComponentActivity() {
             AndroidTheme {
                 MainScreen(
                     onLogoutClick = {
+                        val prefs = getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
+                        prefs.edit().remove("saved_operator").apply()
+
                         val intent = Intent(this@MainActivity, LoginActivity::class.java)
                         startActivity(intent)
                         finish()
@@ -92,7 +98,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-@Preview(showBackground = true, showSystemUi = true)
+@Preview(showBackground = true, showSystemUi = true,device = "spec:width=1080px,height=2340px,dpi=420")
 @Composable
 fun MainScreenPreview() {
     AndroidTheme {
@@ -114,6 +120,7 @@ fun MainScreen(
 ) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+    val focusManager = LocalFocusManager.current
 
     var alcOptions by remember { mutableStateOf(listOf<String>()) }
     var materialOptions by remember { mutableStateOf(listOf<String>()) }
@@ -183,7 +190,6 @@ fun MainScreen(
             val materialArray = json.getJSONArray("materialNoList")
             val supplierArray = json.getJSONArray("supplierList")
             val processArray = json.getJSONArray("processList")
-            val operaterArray = json.getJSONArray("operaterList")
 
             alcOptions =
                 List(alcArray.length()) { i ->
@@ -203,11 +209,6 @@ fun MainScreen(
             processOptions =
                 List(processArray.length()) { i ->
                     processArray.getString(i)
-                }
-
-            operaterOptions =
-                List(operaterArray.length()) { i ->
-                    operaterArray.getString(i)
                 }
 
         } catch (e: Exception) {
@@ -446,9 +447,9 @@ fun MainScreen(
             val json = JSONObject(result)
 
             detailId = json.getInt("id")
-            detailDefectReason = json.optString("defectReason", "")
-            detailOperator = json.optString("operater", "")
-            detailStatus = json.optString("status", "")
+            detailDefectReason = json.optString("defectReason")
+            detailOperator = json.optString("operater")
+            detailStatus = json.optString("status")
 
             Log.d("DETAIL_API", "id=$detailId")
             Log.d("DETAIL_API", "reason=$detailDefectReason")
@@ -456,9 +457,88 @@ fun MainScreen(
             Log.d("DETAIL_API", "status=$detailStatus")
 
 
-
         } catch (e: Exception) {
             Log.e("DETAIL_API", "상세조회 오류", e)
+        }
+    }
+
+    suspend fun refreshAllOptions(
+        alc: String,
+        material: String,
+        supplier: String,
+        process: String
+    ) {
+        val json = loadFilteredOptions(
+            alc,
+            material,
+            supplier,
+            process
+        )
+
+        val alcArray = json.getJSONArray("alcCodeList")
+        alcOptions =
+            List(alcArray.length()) {
+                alcArray.getString(it)
+            }
+
+        val materialArray = json.getJSONArray("materialNoList")
+        materialOptions =
+            List(materialArray.length()) {
+                materialArray.getString(it)
+            }
+
+        val supplierArray = json.getJSONArray("supplierList")
+        supplierOptions =
+            List(supplierArray.length()) {
+                supplierArray.getString(it)
+            }
+
+        val processArray = json.getJSONArray("processList")
+        processOptions =
+            List(processArray.length()) {
+                processArray.getString(it)
+            }
+
+        // 결과 하나일 경우 바로 선택
+        val count = json.getInt("count")
+
+        Log.d("FILTER_API", "count => $count")
+
+        if (count == 1) {
+            if (alcOptions.isNotEmpty()) {
+                selectedAlcCode = alcOptions[0]
+            }
+
+            if (materialOptions.isNotEmpty()) {
+                selectedMaterialNo = materialOptions[0]
+            }
+
+            if (supplierOptions.isNotEmpty()) {
+                selectedSupplier = supplierOptions[0]
+            }
+
+            if (processOptions.isNotEmpty()) {
+                selectedProcess = processOptions[0]
+            }
+
+            Log.d("FILTER_API", "자동완성 완료")
+            return
+        }
+
+        if (!alcOptions.contains(selectedAlcCode)) {
+            selectedAlcCode = ""
+        }
+
+        if (!materialOptions.contains(selectedMaterialNo)) {
+            selectedMaterialNo = ""
+        }
+
+        if (!supplierOptions.contains(selectedSupplier)) {
+            selectedSupplier = ""
+        }
+
+        if (!processOptions.contains(selectedProcess)) {
+            selectedProcess = ""
         }
     }
 
@@ -548,6 +628,8 @@ fun MainScreen(
 
             context.startActivity(intent)
 
+            reset()
+            focusManager.clearFocus()
         } catch (e: Exception) {
             Log.e("QR_PARSE", "QR 파싱 오류", e)
         }
@@ -651,6 +733,12 @@ fun MainScreen(
     // 기본 화면
     Box(
         modifier = Modifier.fillMaxSize()
+            .clickable(
+            indication = null,
+            interactionSource = remember { MutableInteractionSource() }
+        ) {
+            focusManager.clearFocus()
+        }
     ){
         Column(
             modifier = Modifier
@@ -664,7 +752,26 @@ fun MainScreen(
                 onSettingClick = onSettingClick
             )
 
-            HeaderSection()
+            HeaderSection(
+                onQrClick = onQrClick
+            )
+
+//                FloatingActionButton(
+//                    onClick = {
+//                        Log.d("QR_DEBUG", "QR 스캔 버튼 클릭")
+//                        onQrClick()
+//                    },
+//                    modifier = Modifier
+////                    .align(Alignment.BottomEnd)
+//                        .padding(20.dp),
+//                    containerColor = Color(0xFF191970)
+//                ) {
+//                    Icon(
+//                        imageVector = Icons.Default.QrCodeScanner,
+//                        contentDescription = "QR Scan",
+//                        tint = Color.White
+//                    )
+//                }
 
             FilterSection(
                 alcOptions = alcOptions,
@@ -677,38 +784,13 @@ fun MainScreen(
                 onSelectedAlcCodeChange = {
                     selectedAlcCode = it
 
-                    selectedMaterialNo = ""
-                    selectedSupplier = ""
-                    selectedProcess = ""
-
                     scope.launch {
-                        val json = loadFilteredOptions(
+                        refreshAllOptions(
                             selectedAlcCode,
-                            "",
-                            "",
-                            ""
+                            selectedMaterialNo,
+                            selectedSupplier,
+                            selectedProcess
                         )
-
-                        val materialArray =
-                            json.getJSONArray("materialNoList")
-                        materialOptions =
-                            List(materialArray.length()) { index ->
-                                materialArray.getString(index)
-                            }
-
-                        val supplierArray =
-                            json.getJSONArray("supplierList")
-                        supplierOptions =
-                            List(supplierArray.length()) { index ->
-                                supplierArray.getString(index)
-                            }
-
-                        val processArray =
-                            json.getJSONArray("processList")
-                        processOptions =
-                            List(processArray.length()) { index ->
-                                processArray.getString(index)
-                            }
                     }
                 },
 
@@ -716,30 +798,13 @@ fun MainScreen(
                 onSelectedMaterialNoChange = {
                     selectedMaterialNo = it
 
-                    selectedSupplier = ""
-                    selectedProcess = ""
-
                     scope.launch {
-                        val json = loadFilteredOptions(
+                        refreshAllOptions(
                             selectedAlcCode,
                             selectedMaterialNo,
-                            "",
-                            ""
+                            selectedSupplier,
+                            selectedProcess
                         )
-
-                        val supplierArray =
-                            json.getJSONArray("supplierList")
-                        supplierOptions =
-                            List(supplierArray.length()) { index ->
-                                supplierArray.getString(index)
-                            }
-
-                        val processArray =
-                            json.getJSONArray("processList")
-                        processOptions =
-                            List(processArray.length()) { index ->
-                                processArray.getString(index)
-                            }
                     }
                 },
 
@@ -747,28 +812,28 @@ fun MainScreen(
                 onSelectedSupplierChange = {
                     selectedSupplier = it
 
-                    selectedProcess = ""
-
                     scope.launch {
-                        val json = loadFilteredOptions(
+                        refreshAllOptions(
                             selectedAlcCode,
                             selectedMaterialNo,
                             selectedSupplier,
-                            ""
+                            selectedProcess
                         )
-
-                        val processArray =
-                            json.getJSONArray("processList")
-                        processOptions =
-                            List(processArray.length()) { index ->
-                                processArray.getString(index)
-                            }
                     }
                 },
 
                 selectedProcess = selectedProcess,
                 onSelectedProcessChange = {
                     selectedProcess = it
+
+                    scope.launch {
+                        refreshAllOptions(
+                            selectedAlcCode,
+                            selectedMaterialNo,
+                            selectedSupplier,
+                            selectedProcess
+                        )
+                    }
                 },
 
                 selectedOperator = selectedOperator,
@@ -816,17 +881,16 @@ fun MainScreen(
                                 }
 
                                 context.startActivity(intent)
+
+                                reset()
+                                focusManager.clearFocus()
                             }
                         }
                     }
                 },
                 onResetClick = {
-                    selectedAlcCode = ""
-                    selectedMaterialNo = ""
-                    selectedSupplier = ""
-                    selectedProcess = ""
-                    selectedDefectReason = ""
-                    selectedOperator = ""
+                    reset()
+                    focusManager.clearFocus()
 
                     scope.launch {
                         loadInitialOptions()
@@ -857,39 +921,57 @@ fun MainScreen(
                 }
             )
         }
-
-        FloatingActionButton(
-            onClick = {
-                Log.d("QR_DEBUG", "QR 스캔 버튼 클릭")
-                onQrClick()
-            },
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(20.dp),
-            containerColor = Color(0xFF191970)
-        ) {
-            Icon(
-                imageVector = Icons.Default.QrCodeScanner,
-                contentDescription = "QR Scan",
-                tint = Color.White
-            )
-        }
     }
 }
 
+//@Composable
+//fun HeaderSection() {
+//    Box(
+//        modifier = Modifier
+//            .fillMaxWidth()
+//            .padding(top = 16.dp, bottom = 12.dp),
+//        contentAlignment = Alignment.Center
+//    ) {
+//        Text(
+//            text = "제품 불량 전산 시스템",
+//            fontSize = 28.sp,
+//            fontWeight = FontWeight.Bold
+//        )
+//    }
+//}
 @Composable
-fun HeaderSection() {
-    Box(
+fun HeaderSection(
+    onQrClick: () -> Unit
+) {
+    Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(top = 16.dp, bottom = 12.dp),
-        contentAlignment = Alignment.Center
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
             text = "제품 불량 전산 시스템",
             fontSize = 28.sp,
             fontWeight = FontWeight.Bold
         )
+
+        Button(
+            onClick = { onQrClick() },
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Color(0xFF191970),
+                contentColor = Color.White
+            ),
+            shape = RoundedCornerShape(10.dp)
+
+        ) {
+            Icon(
+                imageVector = Icons.Default.QrCodeScanner,
+                contentDescription = "QR Scan",
+                tint = Color.White,
+                modifier = Modifier.size(32.dp)
+            )
+        }
     }
 }
 
@@ -901,7 +983,7 @@ fun LogoutSection(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(bottom = 16.dp),
+            .padding(bottom = 16.dp, top = 30.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -924,7 +1006,8 @@ fun LogoutSection(
             Icon(
                 imageVector = Icons.Default.Settings,
                 contentDescription = "설정",
-                tint = Color(0xFF191970)
+                tint = Color(0xFF191970),
+                modifier = Modifier.size(32.dp)
             )
         }
     }
@@ -1027,6 +1110,9 @@ fun SearchableDropdownField(
             onValueChange = {
                 query = it
                 expanded = true
+                if (it.isBlank()) {
+                    onValueSelected("")
+                }
             },
             label = { Text(label) },
             singleLine = true,

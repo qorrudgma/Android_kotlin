@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -44,6 +45,9 @@ import com.example.android.ui.theme.AndroidTheme
 import org.json.JSONObject
 import androidx.core.content.edit
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 
 class LoginActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -70,7 +74,7 @@ class LoginActivity : ComponentActivity() {
 @Preview(
     showBackground = true,
     showSystemUi = true,
-    device = "id:pixel_5"
+    device = "spec:width=1080px,height=2340px,dpi=420"
 )
 
 @Composable
@@ -94,6 +98,7 @@ fun LoginScreen(
     var errorMessage by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+    val focusManager = LocalFocusManager.current
     val prefs = context.getSharedPreferences("login_prefs", Context.MODE_PRIVATE)
 
     LaunchedEffect(Unit) {
@@ -113,12 +118,18 @@ fun LoginScreen(
             .fillMaxSize()
             .background(Color(0xFFF5F6F8))
             .padding(horizontal = 20.dp)
+            .clickable(
+                indication = null,
+                interactionSource = remember { MutableInteractionSource() }
+            ) {
+                focusManager.clearFocus()
+            }
     ) {
 
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 16.dp),
+                .padding(top = 30.dp),
             horizontalArrangement = Arrangement.End
         ) {
             IconButton(
@@ -127,7 +138,8 @@ fun LoginScreen(
                 Icon(
                     imageVector = Icons.Default.Settings,
                     contentDescription = "설정",
-                    tint = Color(0xFF191970)
+                    tint = Color(0xFF191970),
+                    modifier = Modifier.size(32.dp)
                 )
             }
         }
@@ -147,7 +159,8 @@ fun LoginScreen(
         LoginInputSection(
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(1f),
+                .padding(vertical = 40.dp),
+//                .weight(1f),
             id = id,
             onIdChange = { id = it },
             password = password,

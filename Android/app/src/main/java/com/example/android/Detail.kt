@@ -46,18 +46,23 @@ import java.net.HttpURLConnection
 import java.net.URL
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.TextButton
+import android.content.Context
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+
 class DetailActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         // 샘플 데이터 (나중에 Intent 값으로 변경 가능)
-        val alcCode = intent.getStringExtra("alcCode") ?: "S00"
-        val materialNo = intent.getStringExtra("materialNo") ?: "05203-SW000"
-        val supplier = intent.getStringExtra("supplier") ?: "S994"
-        val process = intent.getStringExtra("process") ?: "실장착1"
-        val defectReason = intent.getStringExtra("defectReason") ?: "스크래치"
-        val operator = intent.getStringExtra("operator") ?: "홍길동"
-        val status = intent.getStringExtra("status") ?: "정상"
+        val alcCode = intent.getStringExtra("alcCode") ?: "없음"
+        val materialNo = intent.getStringExtra("materialNo") ?: "없음"
+        val supplier = intent.getStringExtra("supplier") ?: "없음"
+        val process = intent.getStringExtra("process") ?: "없음"
+        val defectReason = intent.getStringExtra("defectReason") ?: "없음"
+        val operator = intent.getStringExtra("operator") ?: "없음"
+        val status = intent.getStringExtra("status") ?: "없음"
 
         setContent {
             AndroidTheme {
@@ -107,6 +112,8 @@ fun DetailScreen(
     var selectedDefectReason by remember { mutableStateOf("") }
     var selectedOperator by remember { mutableStateOf("") }
     val context = LocalContext.current
+    val focusManager = LocalFocusManager.current
+    val prefs = context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
     val defectOptions = listOf(
         "스크래치",
         "오염",
@@ -271,6 +278,9 @@ fun DetailScreen(
                     "message",
                     "불량 등록 완료"
                 )
+            prefs.edit()
+                .putString("saved_operator", selectedOperator)
+                .apply()
 
             detailApi()
             showResultDialog = true
@@ -337,6 +347,11 @@ fun DetailScreen(
                     "message",
                     "불량 취소 완료"
                 )
+
+            prefs.edit()
+                .putString("saved_operator", selectedOperator)
+                .apply()
+
             scope.launch {
                 detailApi()
             }
@@ -354,12 +369,20 @@ fun DetailScreen(
 
     LaunchedEffect(Unit) {
         operatorApi()
+        selectedOperator =
+            prefs.getString("saved_operator", "") ?: ""
     }
 
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(Color(0xFFF5F6F8))
+            .clickable(
+                indication = null,
+                interactionSource = remember { MutableInteractionSource() }
+            ) {
+                focusManager.clearFocus()
+            }
             .padding(20.dp)
     ) {
         Column(
@@ -372,7 +395,7 @@ fun DetailScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 30.dp),
+                    .padding(bottom = 30.dp, top = 30.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(
@@ -389,34 +412,8 @@ fun DetailScreen(
                 )
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+//            Spacer(modifier = Modifier.height(20.dp))
 
-            // 상세 카드
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = Color.White
-                ),
-                elevation = CardDefaults.cardElevation(4.dp)
-            ) {
-                Column(
-                    modifier = Modifier.padding(20.dp)
-                ) {
-                    DetailItem("ALC코드", alcCode)
-                    DetailItem("자재번호", materialNo)
-                    DetailItem("공급업체", supplier)
-                    DetailItem("실장착공정", process)
-
-                    if (isDefect) {
-                        DetailItem("담당자", currentOperator)
-                        DetailItem("불량사유", currentDefectReason, Color.Red)
-                        DetailItem("상태", currentStatus, Color.Red)
-                    } else{
-                        DetailItem("상태", currentStatus, Color(0xFF006400))
-                    }
-                }
-            }
 
             if (!isDefect) {
                 SearchableDropdownField(
@@ -427,18 +424,76 @@ fun DetailScreen(
                         selectedDefectReason = it
                     }
                 )
-
-                SearchableDropdownField(
-                    label = "담당자",
-                    options = operaterOptions,
-                    selectedValue = selectedOperator,
-                    onValueSelected = {
-                        selectedOperator = it
-                    }
-                )
             }
 
-            Spacer(modifier = Modifier.weight(1f))
+            SearchableDropdownField(
+                label = "담당자",
+                options = operaterOptions,
+                selectedValue = selectedOperator,
+                onValueSelected = {
+                    selectedOperator = it
+
+                    prefs.edit()
+                        .putString("saved_operator", it)
+                        .apply()
+                }
+            )
+
+            // 상세 카드
+            Card(
+                modifier = Modifier.fillMaxWidth()
+                    .padding(top = 30.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = Color.White
+                ),
+                elevation = CardDefaults.cardElevation(4.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(20.dp)
+                ) {
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(
+//                            modifier = Modifier.padding(20.dp)
+                            modifier = Modifier
+                        ) {
+                            DetailItem("ALC코드", alcCode)
+                            DetailItem("공급업체", supplier)
+                        }
+                        Column(
+//                            modifier = Modifier.padding(20.dp)
+                            modifier = Modifier.padding(horizontal = 30.dp)
+                        ) {
+                            DetailItem("자재번호", materialNo)
+                            DetailItem("실장착공정", process)
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth()
+                            .padding(top = 10.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        if (isDefect) {
+                            DetailItem("담당자", currentOperator)
+                            DetailItem("불량사유", currentDefectReason, Color.Red)
+                            DetailItem("상태", currentStatus, Color.Red)
+                        } else{
+                            DetailItem("상태", currentStatus, Color(0xFF006400))
+                        }
+                    }
+
+                }
+            }
+
+//            Spacer(modifier = Modifier.weight(1f))
+            Spacer(modifier = Modifier.height(30.dp))
 
             // 하단 버튼
             Row(
@@ -552,7 +607,7 @@ fun DetailItem(
 @Preview(
     showBackground = true,
     showSystemUi = true,
-    device = "id:pixel_5"
+    device = "spec:width=1080px,height=2340px,dpi=420"
 )
 @Composable
 fun DetailScreenPreview() {
