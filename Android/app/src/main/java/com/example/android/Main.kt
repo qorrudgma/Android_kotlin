@@ -114,8 +114,6 @@ fun MainScreen(
     var supplierOptions by remember { mutableStateOf(listOf<String>()) }
     var processOptions by remember { mutableStateOf(listOf<String>()) }
     var operaterOptions by remember { mutableStateOf(listOf<String>()) }
-    var OptionsOne by remember { mutableStateOf(listOf<String>()) }
-    var OptionsTwo by remember { mutableStateOf(listOf<String>()) }
 
     var materialStatus by remember { mutableStateOf("") }
 
@@ -137,14 +135,6 @@ fun MainScreen(
     var detailDefectReason by remember { mutableStateOf("") }
     var detailOperator by remember { mutableStateOf("") }
     var detailStatus by remember { mutableStateOf("") }
-
-    val defectReasonOptions = listOf(
-        "스크래치",
-        "오염",
-        "변형",
-        "파손",
-        "기타"
-    )
 
     // 초기 옵션 api
     suspend fun loadInitialOptions() {
@@ -709,23 +699,6 @@ fun MainScreen(
             HeaderSection(
                 onQrClick = onQrClick
             )
-
-//                FloatingActionButton(
-//                    onClick = {
-//                        Log.d("QR_DEBUG", "QR 스캔 버튼 클릭")
-//                        onQrClick()
-//                    },
-//                    modifier = Modifier
-////                    .align(Alignment.BottomEnd)
-//                        .padding(20.dp),
-//                    containerColor = Color(0xFF191970)
-//                ) {
-//                    Icon(
-//                        imageVector = Icons.Default.QrCodeScanner,
-//                        contentDescription = "QR Scan",
-//                        tint = Color.White
-//                    )
-//                }
 
             FilterSection(
                 alcOptions = alcOptions,
