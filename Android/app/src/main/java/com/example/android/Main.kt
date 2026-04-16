@@ -98,19 +98,6 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-@Preview(showBackground = true, showSystemUi = true,device = "spec:width=1080px,height=2340px,dpi=420")
-@Composable
-fun MainScreenPreview() {
-    AndroidTheme {
-        MainScreen(
-            onLogoutClick = {},
-            onSettingClick = {},
-            onQrClick = {},
-            onQrScanned = {}
-        )
-    }
-}
-
 @Composable
 fun MainScreen(
     onLogoutClick: () -> Unit,
@@ -547,89 +534,56 @@ fun MainScreen(
         try {
             Log.d("QR_readQR", "qrValue => $qrValue")
 
-            selectedAlcCode = "없음"
-            selectedMaterialNo = "없음"
-            selectedSupplier = "없음"
-            selectedProcess = "없음"
+            selectedAlcCode = ""
+            selectedMaterialNo = ""
+            selectedSupplier = ""
+            selectedProcess = ""
 
             val parts = qrValue.split("<GS>")
             val valuesAfterGs = parts.drop(1)
 
-            for (item in valuesAfterGs) {
+            for (rawItem in valuesAfterGs) {
+
+                val item = rawItem.trim()
 
                 if (item.isEmpty()) continue
 
                 val firstChar = item.first()
-                val remainingText = item.drop(1)
+                val remainingText = item.drop(1).trim()
 
                 when (firstChar) {
                     'S' -> {
                         selectedAlcCode =
-                            if (remainingText.isBlank()) "없음"
-                            else remainingText
-
-                        Log.d("QR_readQR", "ALC코드 => $selectedAlcCode")
+                            remainingText.ifBlank { "" }
                     }
 
                     'P' -> {
                         selectedMaterialNo =
-                            if (remainingText.isBlank()) "없음"
-                            else remainingText
-
-                        Log.d("QR_readQR", "자재번호 => $selectedMaterialNo")
+                            remainingText.ifBlank { "" }
                     }
 
                     'V' -> {
                         selectedSupplier =
-                            if (remainingText.isBlank()) "없음"
-                            else remainingText
-
-                        Log.d("QR_readQR", "공급업체 => $selectedSupplier")
+                            remainingText.ifBlank { "" }
                     }
 
-                    else -> {
-                        Log.d("QR_readQR", "알 수 없는 타입 => $item")
+                    'A' -> {
+                        selectedProcess =
+                            remainingText.ifBlank { "" }
                     }
                 }
             }
 
-            val json = loadFilteredOptions(
+            // 필터 실행
+            refreshAllOptions(
                 selectedAlcCode,
                 selectedMaterialNo,
                 selectedSupplier,
-                ""
+                selectedProcess
             )
 
-            val processArray = json.getJSONArray("processList")
-            processOptions = List(processArray.length()) {
-                processArray.getString(it)
-            }
-
-            selectedProcess =
-                if (processOptions.isNotEmpty())
-                    processOptions[0]
-                else
-                    "없음"
-
-            Log.d("QR_readQR", "자동 선택 Process => $selectedProcess")
-            detailApi()
-
-            // Detail 화면 이동
-            val intent = Intent(context, DetailActivity::class.java).apply {
-                putExtra("id", detailId)
-                putExtra("alcCode", selectedAlcCode)
-                putExtra("materialNo", selectedMaterialNo)
-                putExtra("supplier", selectedSupplier)
-                putExtra("process", selectedProcess)
-                putExtra("defectReason", detailDefectReason)
-                putExtra("operator", detailOperator)
-                putExtra("status", detailStatus)
-            }
-
-            context.startActivity(intent)
-
-            reset()
             focusManager.clearFocus()
+
         } catch (e: Exception) {
             Log.e("QR_PARSE", "QR 파싱 오류", e)
         }
@@ -1196,5 +1150,25 @@ fun ButtonSection(
                 fontSize = 18.sp
             )
         }
+    }
+}
+
+@Preview(
+    showBackground = true,
+    showSystemUi = true,
+    device = "spec:width=1080px,height=2340px,dpi=420"
+//    device = "spec:width=1200px,height=1920px,dpi=240"
+//    device = "spec:width=800px,height=1280px,dpi=240"
+)
+
+@Composable
+fun MainScreenPreview() {
+    AndroidTheme {
+        MainScreen(
+            onLogoutClick = {},
+            onSettingClick = {},
+            onQrClick = {},
+            onQrScanned = {}
+        )
     }
 }
