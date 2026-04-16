@@ -88,6 +88,10 @@ class MainActivity : ComponentActivity() {
                     },
                     onQrScanned = { callback ->
                         onQrScannedCallback = callback
+                    },
+                    onHistoryClick = {
+                        val intent = Intent(this@MainActivity, HistoryActivity::class.java)
+                        startActivity(intent)
                     }
                 )
             }
@@ -100,7 +104,8 @@ fun MainScreen(
     onLogoutClick: () -> Unit,
     onSettingClick: () -> Unit,
     onQrClick: () -> Unit,
-    onQrScanned: ((String) -> Unit) -> Unit
+    onQrScanned: ((String) -> Unit) -> Unit,
+    onHistoryClick: () -> Unit
 ) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -603,7 +608,8 @@ fun MainScreen(
                     scope.launch {
                         loadInitialOptions()
                     }
-                }
+                },
+                onHistoryClick = onHistoryClick
             )
         }
 
@@ -854,38 +860,60 @@ fun SearchableDropdownField(
     }
 }
 
+// 하단 버튼
 @Composable
 fun ButtonSection(
     onRegisterClick: () -> Unit,
-    onResetClick: () -> Unit
+    onResetClick: () -> Unit,
+    onHistoryClick: () -> Unit
 ) {
-    // 하단 버튼
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Button(
-            onClick = { onResetClick() },
-            modifier = Modifier.weight(1f),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = Color.Gray
-            )
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text(
-                text = "리셋",
-                fontSize = 18.sp
-            )
+            Button(
+                onClick = { onResetClick() },
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color.Gray
+                )
+            ) {
+                Text(
+                    text = "리셋",
+                    fontSize = 18.sp
+                )
+            }
+
+            Button(
+                onClick = { onRegisterClick() },
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFF191970)
+                )
+            ) {
+                Text(
+                    text = "검색하기",
+                    fontSize = 18.sp
+                )
+            }
         }
 
         Button(
-            onClick = { onRegisterClick() },
-            modifier = Modifier.weight(1f),
+            onClick = { onHistoryClick() },
+            modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(
                 containerColor = Color(0xFF191970)
             )
         ) {
             Text(
-                text = "검색하기",
+                text = "이력확인",
                 fontSize = 18.sp
             )
         }
@@ -907,7 +935,8 @@ fun MainScreenPreview() {
             onLogoutClick = {},
             onSettingClick = {},
             onQrClick = {},
-            onQrScanned = {}
+            onQrScanned = {},
+            onHistoryClick = {}
         )
     }
 }
