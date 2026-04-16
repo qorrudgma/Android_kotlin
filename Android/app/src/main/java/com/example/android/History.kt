@@ -12,6 +12,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -58,10 +59,12 @@ data class HistoryItem(
 
 @Composable
 fun HistoryScreen(
-    onBackClick: () -> Unit
+    onBackClick: () -> Unit,
+    previewData: List<HistoryItem>? = null
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
+    val focusManager = LocalFocusManager.current
 
     var selectedOperator by remember { mutableStateOf("") }
     var operatorOptions by remember { mutableStateOf(listOf<String>()) }
@@ -213,6 +216,7 @@ fun HistoryScreen(
                 selectedValue = selectedOperator,
                 onValueSelected = {
                     selectedOperator = it
+                    focusManager.clearFocus()
                 }
             )
 
@@ -221,6 +225,7 @@ fun HistoryScreen(
             // 조회 버튼
             Button(
                 onClick = {
+                    focusManager.clearFocus()
                     if (selectedOperator.isBlank()) {
                         dialogMessage = "담당자를 선택하세요."
                         showDialog = true
@@ -249,6 +254,7 @@ fun HistoryScreen(
             // 결과 리스트
             if (historyList.isNotEmpty()) {
                 LazyColumn(
+                    contentPadding = PaddingValues(vertical = 12.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     items(historyList) { item ->
@@ -286,7 +292,8 @@ fun HistoryScreen(
 @Composable
 fun HistoryCard(item: HistoryItem) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth()
+            .padding(horizontal = 4.dp),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
             containerColor = Color.White
@@ -296,11 +303,6 @@ fun HistoryCard(item: HistoryItem) {
         Column(
             modifier = Modifier.padding(16.dp)
         ) {
-//            Text(
-//                text = "${item.operator} / ${item.status}",
-//                fontSize = 18.sp
-//            )
-
             Row(
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -338,117 +340,31 @@ fun HistoryCard(item: HistoryItem) {
     }
 }
 
-@Composable
-fun HistoryContent(
-    selectedOperator: String,
-    operatorOptions: List<String>,
-    historyList: List<HistoryItem>,
-    onOperatorSelected: (String) -> Unit,
-    onSearchClick: () -> Unit,
-    onBackClick: () -> Unit
-) {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color(0xFFF5F6F8))
-            .padding(20.dp)
-    ) {
-        Column(
-            modifier = Modifier.fillMaxSize()
-        ) {
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 30.dp, top = 30.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(
-                    onClick = { onBackClick() }
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.ArrowBack,
-                        contentDescription = "뒤로가기"
-                    )
-                }
-
-                Text(
-                    text = "작업 이력 조회",
-                    fontSize = 24.sp
-                )
-            }
-
-            SearchableDropdownField(
-                label = "담당자",
-                options = operatorOptions,
-                selectedValue = selectedOperator,
-                onValueSelected = onOperatorSelected
-            )
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            Button(
-                onClick = onSearchClick,
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF191970)
-                )
-            ) {
-                Text("조회")
-            }
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            if (historyList.isNotEmpty()) {
-                LazyColumn(
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    items(historyList) { item ->
-                        HistoryCard(item)
-                    }
-                }
-            }
-        }
-    }
-}
-
 @Preview(
     showBackground = true,
     showSystemUi = true,
     device = "spec:width=1080px,height=2340px,dpi=420"
 )
-
 @Composable
 fun HistoryScreenPreview() {
     AndroidTheme {
-        HistoryContent(
-            selectedOperator = "test1",
-            operatorOptions = listOf("test1", "test2", "홍길동"),
-            historyList = listOf(
-                HistoryItem(
-                    alcCode = "S00",
-                    materialNo = "05203-SW000",
-                    supplier = "S994",
-                    process = "실장착1",
-                    status = "불량 등록",
-                    createdAt = "2026-04-16 09:30:21",
-                    operator = "test1",
-                    defectReason = "스크래치"
-                ),
-                HistoryItem(
-                    alcCode = "S01",
-                    materialNo = "05203-SW001",
-                    supplier = "S995",
-                    process = "실장착2",
-                    status = "정상 등록",
-                    createdAt = "2026-04-16 10:15:42",
-                    operator = "test1",
-                    defectReason = "정상"
-                )
-            ),
-            onOperatorSelected = {},
-            onSearchClick = {},
-            onBackClick = {}
+
+        val sampleList = listOf(
+            HistoryItem(
+                alcCode = "S00",
+                materialNo = "05203-SW000",
+                supplier = "S994",
+                process = "실장착1",
+                status = "불량 등록",
+                createdAt = "2026-04-16 09:30:21",
+                operator = "담당1",
+                defectReason = "스크래치"
+            )
+        )
+
+        HistoryScreen(
+            onBackClick = {},
+            previewData = sampleList   // 👈 핵심
         )
     }
 }

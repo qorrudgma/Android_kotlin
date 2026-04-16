@@ -121,7 +121,6 @@ fun MainScreen(
     var selectedMaterialNo by remember { mutableStateOf("") }
     var selectedSupplier by remember { mutableStateOf("") }
     var selectedProcess by remember { mutableStateOf("") }
-    var selectedDefectReason by remember { mutableStateOf("") }
     var selectedOperator by remember { mutableStateOf("") }
 
     var showResultDialog by remember { mutableStateOf(false) }
@@ -195,7 +194,6 @@ fun MainScreen(
         selectedMaterialNo = ""
         selectedSupplier = ""
         selectedProcess = ""
-        selectedDefectReason = ""
         selectedOperator = ""
 
         scope.launch {
@@ -496,6 +494,7 @@ fun MainScreen(
                 selectedAlcCode = selectedAlcCode,
                 onSelectedAlcCodeChange = {
                     selectedAlcCode = it
+                    focusManager.clearFocus()
 
                     scope.launch {
                         refreshAllOptions(
@@ -510,6 +509,7 @@ fun MainScreen(
                 selectedMaterialNo = selectedMaterialNo,
                 onSelectedMaterialNoChange = {
                     selectedMaterialNo = it
+                    focusManager.clearFocus()
 
                     scope.launch {
                         refreshAllOptions(
@@ -524,6 +524,7 @@ fun MainScreen(
                 selectedSupplier = selectedSupplier,
                 onSelectedSupplierChange = {
                     selectedSupplier = it
+                    focusManager.clearFocus()
 
                     scope.launch {
                         refreshAllOptions(
@@ -538,6 +539,7 @@ fun MainScreen(
                 selectedProcess = selectedProcess,
                 onSelectedProcessChange = {
                     selectedProcess = it
+                    focusManager.clearFocus()
 
                     scope.launch {
                         refreshAllOptions(
@@ -552,6 +554,7 @@ fun MainScreen(
                 selectedOperator = selectedOperator,
                 onSelectedOperatorChange = {
                     selectedOperator = it
+                    focusManager.clearFocus()
                 }
             )
 
@@ -794,6 +797,7 @@ fun SearchableDropdownField(
     onValueSelected: (String) -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
+    val focusManager = LocalFocusManager.current
     var query by remember(selectedValue) {
         mutableStateOf(selectedValue)
     }
@@ -853,6 +857,7 @@ fun SearchableDropdownField(
                         query = option
                         onValueSelected(option)
                         expanded = false
+                        focusManager.clearFocus()
                     }
                 )
             }
