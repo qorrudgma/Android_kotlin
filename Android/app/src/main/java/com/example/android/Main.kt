@@ -32,9 +32,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
-import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.withStyle
-import androidx.compose.ui.text.SpanStyle
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
@@ -115,8 +112,6 @@ fun MainScreen(
     var processOptions by remember { mutableStateOf(listOf<String>()) }
     var operaterOptions by remember { mutableStateOf(listOf<String>()) }
 
-    var materialStatus by remember { mutableStateOf("") }
-
     var selectedAlcCode by remember { mutableStateOf("") }
     var selectedMaterialNo by remember { mutableStateOf("") }
     var selectedSupplier by remember { mutableStateOf("") }
@@ -124,12 +119,9 @@ fun MainScreen(
     var selectedDefectReason by remember { mutableStateOf("") }
     var selectedOperator by remember { mutableStateOf("") }
 
-    var showRegisterDialog by remember { mutableStateOf(false) }
     var showResultDialog by remember { mutableStateOf(false) }
     var resultMessage by remember { mutableStateOf("") }
 
-    var defectReasonFromServer by remember { mutableStateOf("") }
-    var defectOperaterFromServer by remember { mutableStateOf("") }
 
     var detailId by remember { mutableStateOf(0) }
     var detailDefectReason by remember { mutableStateOf("") }
@@ -243,132 +235,6 @@ fun MainScreen(
             } finally {
                 connection.disconnect()
             }
-        }
-    }
-
-    // 불량등록 하는 api
-    suspend fun registerDefectApi() {
-        try {
-            val result = withContext(Dispatchers.IO) {
-                val apiUrl =
-                    "${ApiSettings.getBaseUrl(context)}/api/MaterialsControllers/register-defect"
-
-                val url = URL(apiUrl)
-                val connection =
-                    url.openConnection() as HttpURLConnection
-
-                try {
-                    connection.requestMethod = "POST"
-                    connection.connectTimeout = 5000
-                    connection.readTimeout = 5000
-                    connection.doOutput = true
-                    connection.setRequestProperty(
-                        "Content-Type",
-                        "application/json; charset=UTF-8"
-                    )
-
-                    val requestJson = JSONObject().apply {
-                        put("AlcCode", selectedAlcCode)
-                        put("MaterialNo", selectedMaterialNo)
-                        put("Supplier", selectedSupplier)
-                        put("Process", selectedProcess)
-                        put("DefectReason", selectedDefectReason)
-                        put("Operator", selectedOperator)
-                    }
-
-                    connection.outputStream.use {
-                        it.write(
-                            requestJson.toString()
-                                .toByteArray(Charsets.UTF_8)
-                        )
-                    }
-
-                    connection.inputStream.bufferedReader().use {
-                        it.readText()
-                    }
-
-                } finally {
-                    connection.disconnect()
-                }
-            }
-
-            val json = JSONObject(result)
-            resultMessage =
-                json.optString(
-                    "message",
-                    "불량 등록이 완료되었습니다."
-                )
-            showResultDialog = true
-
-        } catch (e: Exception) {
-            Log.e("REGISTER_API", "등록 오류", e)
-            resultMessage = "불량 등록 실패"
-            showResultDialog = true
-        }finally {
-            reset()
-        }
-    }
-
-    // 불량 등록취소 api
-    suspend fun cancelDefectApi() {
-        try {
-            val result = withContext(Dispatchers.IO) {
-                val apiUrl =
-                    "${ApiSettings.getBaseUrl(context)}/api/MaterialsControllers/cancel-defect"
-
-                val url = URL(apiUrl)
-                val connection =
-                    url.openConnection() as HttpURLConnection
-
-                try {
-                    connection.requestMethod = "POST"
-                    connection.connectTimeout = 5000
-                    connection.readTimeout = 5000
-                    connection.doOutput = true
-                    connection.setRequestProperty(
-                        "Content-Type",
-                        "application/json; charset=UTF-8"
-                    )
-
-                    val requestJson = JSONObject().apply {
-                        put("AlcCode", selectedAlcCode)
-                        put("MaterialNo", selectedMaterialNo)
-                        put("Supplier", selectedSupplier)
-                        put("Process", selectedProcess)
-                        put("DefectReason", selectedDefectReason)
-                        put("Operator", selectedOperator)
-                    }
-
-                    connection.outputStream.use {
-                        it.write(
-                            requestJson.toString()
-                                .toByteArray(Charsets.UTF_8)
-                        )
-                    }
-
-                    connection.inputStream.bufferedReader().use {
-                        it.readText()
-                    }
-
-                } finally {
-                    connection.disconnect()
-                }
-            }
-
-            val json = JSONObject(result)
-            resultMessage =
-                json.optString(
-                    "message",
-                    "불량 취소가 완료되었습니다."
-                )
-            showResultDialog = true
-
-        } catch (e: Exception) {
-            Log.e("REGISTER_API", "등록 오류", e)
-            resultMessage = "불량 취소 실패"
-            showResultDialog = true
-        } finally {
-            reset()
         }
     }
 
@@ -589,91 +455,6 @@ fun MainScreen(
         }
     }
 
-    // 등록이나 취소 시 내용 확인하는 팝업 창
-    if (showRegisterDialog) {
-        AlertDialog(
-            onDismissRequest = {
-                showRegisterDialog = false
-            },
-            title = {
-                Text("등록 확인")
-            },
-            text = {
-                Text(
-                    buildAnnotatedString {
-                        append("ALC 코드: $selectedAlcCode\n")
-                        append("자재번호: $selectedMaterialNo\n")
-                        append("공급업체: $selectedSupplier\n")
-                        append("공정: $selectedProcess\n")
-
-                        if (materialStatus == "불량") {
-                            append("불량 사유: ")
-                            withStyle(
-                                style = SpanStyle(color = Color.Red)
-                            ) {
-                                append("$defectReasonFromServer\n")
-                            }
-                            append("담당자: ")
-                            withStyle(
-                                style = SpanStyle(color = Color.Red)
-                            ) {
-                                append("$defectOperaterFromServer\n")
-                            }
-                        } else {
-                            append("불량 사유: $selectedDefectReason\n")
-                            append("담당자: $selectedOperator\n")
-                        }
-
-                        append("상태: ")
-
-                        withStyle(
-                            style = SpanStyle(
-                                color = if (materialStatus == "불량")
-                                    Color.Red
-                                else
-                                    Color(0xFF006400)
-                            )
-                        ) {
-                            append(materialStatus)
-                        }
-                    }
-                )
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        showRegisterDialog = false
-                        scope.launch {
-                            if (materialStatus == "불량") {
-                                // 불량일 때 취소 처리
-                                cancelDefectApi()
-                            } else {
-                                // 정상일 때 등록 처리
-                                registerDefectApi()
-                            }
-                        }
-                    }
-                ) {
-                    val isDefect = materialStatus == "불량"
-
-                    Text(
-                        text = if (isDefect) "불량 취소하기" else "불량 등록하기",
-                        color = if (isDefect) Color.Red else Color(0xFF006400)
-                    )
-                }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = {
-                        showRegisterDialog = false
-                    }
-                ) {
-                    Text("뒤로가기")
-                }
-            }
-        )
-    }
-
     // 기본 화면
     Box(
         modifier = Modifier.fillMaxSize()
@@ -851,21 +632,6 @@ fun MainScreen(
     }
 }
 
-//@Composable
-//fun HeaderSection() {
-//    Box(
-//        modifier = Modifier
-//            .fillMaxWidth()
-//            .padding(top = 16.dp, bottom = 12.dp),
-//        contentAlignment = Alignment.Center
-//    ) {
-//        Text(
-//            text = "제품 불량 전산 시스템",
-//            fontSize = 28.sp,
-//            fontWeight = FontWeight.Bold
-//        )
-//    }
-//}
 @Composable
 fun HeaderSection(
     onQrClick: () -> Unit

@@ -1,7 +1,6 @@
 package com.example.android
 
 import androidx.compose.ui.tooling.preview.Preview
-import android.app.Activity
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -50,6 +49,7 @@ import android.content.Context
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.core.content.edit
 
 class DetailActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -76,12 +76,6 @@ class DetailActivity : ComponentActivity() {
                     status = status,
                     onBackClick = {
                         finish()
-                    },
-                    onDefectRegisterClick = {
-                        // 나중에 등록 API 연결
-                    },
-                    onDefectCancelClick = {
-                        // 나중에 취소 API 연결
                     }
                 )
             }
@@ -98,9 +92,7 @@ fun DetailScreen(
     defectReason: String,
     operator: String,
     status: String,
-    onBackClick: () -> Unit,
-    onDefectRegisterClick: () -> Unit,
-    onDefectCancelClick: () -> Unit
+    onBackClick: () -> Unit
 ) {
     var showResultDialog by remember { mutableStateOf(false) }
     var resultMessage by remember { mutableStateOf("") }
@@ -167,6 +159,7 @@ fun DetailScreen(
         }
     }
 
+    // 상세화면 조회 api
     suspend fun detailApi() {
         try {
             val result = withContext(Dispatchers.IO) {
@@ -278,9 +271,9 @@ fun DetailScreen(
                     "message",
                     "불량 등록 완료"
                 )
-            prefs.edit()
-                .putString("saved_operator", selectedOperator)
-                .apply()
+            prefs.edit {
+                putString("saved_operator", selectedOperator)
+            }
 
             detailApi()
             showResultDialog = true
@@ -348,9 +341,9 @@ fun DetailScreen(
                     "불량 취소 완료"
                 )
 
-            prefs.edit()
-                .putString("saved_operator", selectedOperator)
-                .apply()
+            prefs.edit {
+                putString("saved_operator", selectedOperator)
+                }
 
             scope.launch {
                 detailApi()
@@ -412,9 +405,6 @@ fun DetailScreen(
                 )
             }
 
-//            Spacer(modifier = Modifier.height(20.dp))
-
-
             if (!isDefect) {
                 SearchableDropdownField(
                     label = "불량 사유",
@@ -433,9 +423,9 @@ fun DetailScreen(
                 onValueSelected = {
                     selectedOperator = it
 
-                    prefs.edit()
-                        .putString("saved_operator", it)
-                        .apply()
+                    prefs.edit {
+                        putString("saved_operator", it)
+                    }
                 }
             )
 
@@ -459,14 +449,12 @@ fun DetailScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(
-//                            modifier = Modifier.padding(20.dp)
                             modifier = Modifier
                         ) {
                             DetailItem("ALC코드", alcCode)
                             DetailItem("공급업체", supplier)
                         }
                         Column(
-//                            modifier = Modifier.padding(20.dp)
                             modifier = Modifier.padding(horizontal = 30.dp)
                         ) {
                             DetailItem("자재번호", materialNo)
@@ -492,7 +480,6 @@ fun DetailScreen(
                 }
             }
 
-//            Spacer(modifier = Modifier.weight(1f))
             Spacer(modifier = Modifier.height(30.dp))
 
             // 하단 버튼
@@ -623,9 +610,7 @@ fun DetailScreenPreview() {
             defectReason = "스크래치",
             operator = "홍길동",
             status = "불량",
-            onBackClick = {},
-            onDefectRegisterClick = {},
-            onDefectCancelClick = {}
+            onBackClick = {}
         )
     }
 }

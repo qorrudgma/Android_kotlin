@@ -144,7 +144,6 @@ fun LoginScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(vertical = 40.dp),
-//                .weight(1f),
             id = id,
             onIdChange = { id = it },
             password = password,
