@@ -657,7 +657,6 @@ fun HeaderSection(
         Column(
             horizontalAlignment = Alignment.End
         ) {
-
             // 설정
             IconButton(
                 onClick = { onSettingClick() }
@@ -669,7 +668,6 @@ fun HeaderSection(
                     modifier = Modifier.size(35.dp)
                 )
             }
-
             // 리셋
             IconButton(
                 onClick = { onResetClick() }

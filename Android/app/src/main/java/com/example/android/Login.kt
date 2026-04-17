@@ -48,6 +48,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.widthIn
 
 class LoginActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -97,102 +98,109 @@ fun LoginScreen(
         }
     }
 
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFFF5F6F8))
-            .padding(horizontal = 20.dp)
-            .clickable(
-                indication = null,
-                interactionSource = remember { MutableInteractionSource() }
-            ) {
-                focusManager.clearFocus()
-            }
+            .background(Color(0xFFF5F6F8)),
+        contentAlignment = Alignment.Center
     ) {
-
-        Row(
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 30.dp),
-            horizontalArrangement = Arrangement.End
+                .fillMaxSize()
+                .widthIn(max = 600.dp)
+                .background(Color(0xFFF5F6F8))
+                .padding(horizontal = 20.dp)
+                .clickable(
+                    indication = null,
+                    interactionSource = remember { MutableInteractionSource() }
+                ) {
+                    focusManager.clearFocus()
+                }
         ) {
-            IconButton(
-                onClick = { onSettingClick() }
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Settings,
-                    contentDescription = "설정",
-                    tint = Color(0xFF191970),
-                    modifier = Modifier.size(32.dp)
-                )
-            }
-        }
-
-        LoginHeaderSection(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(50.dp)
-        )
-
-        LoginTitleSection(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(70.dp)
-        )
-
-        LoginInputSection(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 40.dp),
-            id = id,
-            onIdChange = { id = it },
-            password = password,
-            onPasswordChange = { password = it },
-            checked = checked,
-            onCheckedChange = { checked = it }
-        )
-
-        if (errorMessage.isNotEmpty()) {
-            Text(
-                text = errorMessage,
-                color = Color.Red,
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 8.dp)
+                    .padding(top = 30.dp),
+                horizontalArrangement = Arrangement.End
+            ) {
+                IconButton(
+                    onClick = { onSettingClick() }
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Settings,
+                        contentDescription = "설정",
+                        tint = Color(0xFF191970),
+                        modifier = Modifier.size(32.dp)
+                    )
+                }
+            }
+
+            LoginHeaderSection(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(50.dp)
+            )
+
+            LoginTitleSection(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(70.dp)
+            )
+
+            LoginInputSection(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 40.dp),
+                id = id,
+                onIdChange = { id = it },
+                password = password,
+                onPasswordChange = { password = it },
+                checked = checked,
+                onCheckedChange = { checked = it }
+            )
+
+            if (errorMessage.isNotEmpty()) {
+                Text(
+                    text = errorMessage,
+                    color = Color.Red,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 8.dp)
+                )
+            }
+
+            BottomSection(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 20.dp),
+                onLoginClick = {
+                    scope.launch {
+                        val success = loginApi(context, id, password)
+
+                        if (success) {
+                            errorMessage = ""
+
+                            if (checked) {
+                                prefs.edit {
+                                    putString("saved_id", id)
+                                    putString("saved_pw", password)
+                                    putBoolean("checked", true)
+                                }
+                            } else {
+                                prefs.edit {
+                                    clear()
+                                }
+                            }
+
+                            onLoginSuccess()
+                        }
+                    }
+                },
+                onSignupClick = {
+                    errorMessage = "회원가입 기능은 아직 준비 중입니다."
+                }
             )
         }
-
-        BottomSection(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 20.dp),
-            onLoginClick = {
-                scope.launch {
-                    val success = loginApi(context, id, password)
-
-                    if (success) {
-                        errorMessage = ""
-
-                        if (checked) {
-                            prefs.edit {
-                                putString("saved_id", id)
-                                putString("saved_pw", password)
-                                putBoolean("checked", true)
-                            }
-                        } else {
-                            prefs.edit {
-                                clear()
-                            }
-                        }
-
-                        onLoginSuccess()
-                    }
-                }
-            },
-            onSignupClick = {
-                errorMessage = "회원가입 기능은 아직 준비 중입니다."
-            }
-        )
     }
 }
 
@@ -285,6 +293,7 @@ fun LoginInputSection(
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit
 ) {
+
     Box(
         modifier = modifier,
         contentAlignment = Alignment.Center
