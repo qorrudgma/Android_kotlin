@@ -57,7 +57,6 @@ class DetailActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // 샘플 데이터 (나중에 Intent 값으로 변경 가능)
         val alcCode = intent.getStringExtra("alcCode") ?: "없음"
         val materialNo = intent.getStringExtra("materialNo") ?: "없음"
         val supplier = intent.getStringExtra("supplier") ?: "없음"
@@ -657,12 +656,9 @@ fun DetailScreen(
                             if (!isEditMode) {
                                 // 수정모드 진입
                                 isEditMode = true
-
                                 selectedDefectReason = ""
 
                             } else {
-                                // 👉 수정 완료
-
                                 if (selectedDefectReason.isBlank()) {
                                     resultMessage = "불량 사유를 선택하세요."
                                     showResultDialog = true

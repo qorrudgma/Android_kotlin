@@ -70,7 +70,6 @@ fun SettingScreen(
         Column(
             modifier = Modifier.fillMaxSize()
         ) {
-
             // 상단 뒤로가기 + 제목
             Row(
                 modifier = Modifier
@@ -120,7 +119,6 @@ fun SettingScreen(
                 singleLine = true,
                 shape = RoundedCornerShape(12.dp)
             )
-
 
             Column(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
