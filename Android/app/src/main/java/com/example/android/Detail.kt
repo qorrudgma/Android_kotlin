@@ -103,7 +103,7 @@ fun DetailScreen(
     var currentDefectReason by remember { mutableStateOf(defectReason) }
     var currentOperator by remember { mutableStateOf(operator) }
 
-    val isDefect = currentStatus == "불량"
+    val isDefect = currentStatus.contains("불량")
     var selectedDefectReason by remember { mutableStateOf("") }
     var selectedOperator by remember { mutableStateOf("") }
     val context = LocalContext.current
@@ -345,7 +345,7 @@ fun DetailScreen(
 
             prefs.edit {
                 putString("saved_operator", selectedOperator)
-                }
+            }
 
             scope.launch {
                 detailApi()
@@ -455,8 +455,8 @@ fun DetailScreen(
     ) {
         Column(
             modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
         ) {
             // 상단 뒤로가기 + 제목
             Row(
@@ -659,7 +659,6 @@ fun DetailScreen(
                                 isEditMode = true
 
                                 selectedDefectReason = ""
-                                selectedOperator = ""
 
                             } else {
                                 // 👉 수정 완료

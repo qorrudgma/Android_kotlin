@@ -168,6 +168,7 @@ fun SettingScreen(
                     TextButton(
                         onClick = {
                             showDialog = false
+                            onLogoutClick()
                         }
                     ) {
                         Text("확인")

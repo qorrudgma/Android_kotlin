@@ -449,11 +449,11 @@ fun MainScreen(
     Box(
         modifier = Modifier.fillMaxSize()
             .clickable(
-            indication = null,
-            interactionSource = remember { MutableInteractionSource() }
-        ) {
-            focusManager.clearFocus()
-        }
+                indication = null,
+                interactionSource = remember { MutableInteractionSource() }
+            ) {
+                focusManager.clearFocus()
+            }
     ){
         Column(
             modifier = Modifier
