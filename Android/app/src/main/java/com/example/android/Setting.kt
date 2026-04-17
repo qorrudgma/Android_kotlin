@@ -1,5 +1,7 @@
 package com.example.android
 
+import android.content.Context
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -18,6 +20,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.android.ui.theme.AndroidTheme
 import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.edit
 
 class SettingActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -28,6 +31,13 @@ class SettingActivity : ComponentActivity() {
                 SettingScreen(
                     onBackClick = {
                         finish()
+                    },onLogoutClick = {
+                        val prefs = getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
+                        prefs.edit { remove("saved_operator") }
+
+                        val intent = Intent(this@SettingActivity, LoginActivity::class.java)
+                        startActivity(intent)
+                        finish()
                     }
                 )
             }
@@ -35,23 +45,10 @@ class SettingActivity : ComponentActivity() {
     }
 }
 
-@Preview(
-    showBackground = true,
-    showSystemUi = true,
-    device = "id:pixel_5"
-)
-@Composable
-fun SettingScreenPreview() {
-    AndroidTheme {
-        SettingScreen(
-            onBackClick = {}
-        )
-    }
-}
-
 @Composable
 fun SettingScreen(
-    onBackClick: () -> Unit
+    onBackClick: () -> Unit,
+    onLogoutClick: () -> Unit
 ) {
     val context = LocalContext.current
     var ip by remember {
@@ -124,26 +121,35 @@ fun SettingScreen(
                 shape = RoundedCornerShape(12.dp)
             )
 
-            // 적용 버튼
-            Button(
-                onClick = {
-                    ApiSettings.saveServerInfo(context, ip, port)
-                    showDialog = true
-                },
-                modifier = Modifier
-                    .align(Alignment.End)
-                    .height(52.dp),
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF191970),
-                    contentColor = Color.White
-                )
+
+            Column(
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Text(
-                    text = "적용",
-                    fontSize = 18.sp
-                )
+
+                Button(
+                    onClick = {
+                        ApiSettings.saveServerInfo(context, ip, port)
+                        showDialog = true
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF191970)
+                    )
+                ) {
+                    Text("적용")
+                }
+
+                Button(
+                    onClick = { onLogoutClick() },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color.Gray
+                    )
+                ) {
+                    Text("로그아웃")
+                }
             }
+
         }
 
         // 적용 완료 팝업
@@ -169,5 +175,22 @@ fun SettingScreen(
                 }
             )
         }
+    }
+}
+
+@Preview(
+    showBackground = true,
+    showSystemUi = true,
+    device = "spec:width=1080px,height=2340px,dpi=420"
+//    device = "spec:width=1200px,height=1920px,dpi=240"
+//    device = "spec:width=800px,height=1280px,dpi=240"
+)
+@Composable
+fun SettingScreenPreview() {
+    AndroidTheme {
+        SettingScreen(
+            onBackClick = {},
+            onLogoutClick = {}
+        )
     }
 }

@@ -13,6 +13,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -28,6 +29,8 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
+import android.content.Intent
+import androidx.compose.foundation.clickable
 import androidx.compose.ui.text.font.FontWeight
 
 class HistoryActivity : ComponentActivity() {
@@ -59,8 +62,7 @@ data class HistoryItem(
 
 @Composable
 fun HistoryScreen(
-    onBackClick: () -> Unit,
-    previewData: List<HistoryItem>? = null
+    onBackClick: () -> Unit
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
@@ -173,6 +175,59 @@ fun HistoryScreen(
         }
     }
 
+    // 디테일 가기전 조회
+    suspend fun detailApiFromHistory(item: HistoryItem): JSONObject? {
+        return try {
+            Log.d("DETAIL_API", "History DetailApi")
+
+            val result = withContext(Dispatchers.IO) {
+                val apiUrl =
+                    "${ApiSettings.getBaseUrl(context)}/api/MaterialsControllers/detail"
+
+                val url = URL(apiUrl)
+                val connection = url.openConnection() as HttpURLConnection
+
+                try {
+                    connection.requestMethod = "POST"
+                    connection.connectTimeout = 5000
+                    connection.readTimeout = 5000
+                    connection.doOutput = true
+                    connection.setRequestProperty(
+                        "Content-Type",
+                        "application/json; charset=UTF-8"
+                    )
+
+                    val requestJson = JSONObject().apply {
+                        put("AlcCode", item.alcCode)
+                        put("MaterialNo", item.materialNo)
+                        put("Supplier", item.supplier)
+                        put("Process", item.process)
+                    }
+
+                    connection.outputStream.use {
+                        it.write(
+                            requestJson.toString()
+                                .toByteArray(Charsets.UTF_8)
+                        )
+                    }
+
+                    connection.inputStream.bufferedReader().use {
+                        it.readText()
+                    }
+
+                } finally {
+                    connection.disconnect()
+                }
+            }
+
+            JSONObject(result)
+
+        } catch (e: Exception) {
+            Log.e("DETAIL_API", "History 상세조회 오류", e)
+            null
+        }
+    }
+
     LaunchedEffect(Unit) {
         loadOperatorList()
     }
@@ -191,7 +246,7 @@ fun HistoryScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 30.dp, top = 30.dp),
+                    .padding(top = 30.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(
@@ -207,6 +262,26 @@ fun HistoryScreen(
                     text = "작업 이력 조회",
                     fontSize = 24.sp
                 )
+            }
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
+                IconButton(
+                    onClick = {
+                        selectedOperator = ""
+                        historyList = listOf()
+                    }
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Refresh,
+                        contentDescription = "초기화",
+                        tint = Color(0xFF191970),
+                        modifier = Modifier.size(35.dp)
+                    )
+                }
             }
 
             // 담당자 선택
@@ -258,7 +333,30 @@ fun HistoryScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     items(historyList) { item ->
-                        HistoryCard(item)
+                        HistoryCard(
+                            item = item,
+                            onClick = {
+                                scope.launch {
+
+                                    val json = detailApiFromHistory(item)
+
+                                    if (json != null) {
+                                        val intent = Intent(context, DetailActivity::class.java).apply {
+                                            putExtra("id", json.getInt("id"))
+                                            putExtra("alcCode", item.alcCode)
+                                            putExtra("materialNo", item.materialNo)
+                                            putExtra("supplier", item.supplier)
+                                            putExtra("process", item.process)
+                                            putExtra("defectReason", json.optString("defectReason"))
+                                            putExtra("operator", json.optString("operater"))
+                                            putExtra("status", json.optString("status"))
+                                        }
+
+                                        context.startActivity(intent)
+                                    }
+                                }
+                            }
+                        )
                     }
                 }
             }
@@ -290,10 +388,15 @@ fun HistoryScreen(
 }
 
 @Composable
-fun HistoryCard(item: HistoryItem) {
+fun HistoryCard(
+    item: HistoryItem,
+    onClick: () -> Unit
+) {
     Card(
-        modifier = Modifier.fillMaxWidth()
-            .padding(horizontal = 4.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 4.dp)
+            .clickable { onClick() },
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
             containerColor = Color.White
@@ -312,29 +415,35 @@ fun HistoryCard(item: HistoryItem) {
                     fontWeight = FontWeight.Bold
                 )
 
+                val statusColor = when (item.status) {
+                    "정상 등록" -> Color(0xFF006400)
+                    "불량 등록" -> Color.Red
+                    "불량 수정" -> Color(0xFFFF8C00)
+                    else -> Color.Black
+                }
+
                 Text(
                     text = item.status,
                     fontSize = 18.sp,
-                    color =
-                        if (item.status == "정상 등록") {
-                            Color(0xFF006400)
-                        } else {
-                            Color.Red
-                        },
+                    color = statusColor,
                     fontWeight = FontWeight.Bold
                 )
             }
 
             Spacer(modifier = Modifier.height(8.dp))
 
-
             Text("ALC 코드: ${item.alcCode}")
             Text("자재번호: ${item.materialNo}")
             Text("공급업체: ${item.supplier}")
             Text("공정: ${item.process}")
-            if (item.status == "불량 등록") {
-                Text("불량사유: ${item.defectReason}")
+
+            if (item.status == "불량 등록" || item.status == "불량 수정") {
+                Text(
+                    text = "불량사유: ${item.defectReason}",
+                    color = Color.Red
+                )
             }
+
             Text("작업시간: ${item.createdAt}")
         }
     }
@@ -344,27 +453,14 @@ fun HistoryCard(item: HistoryItem) {
     showBackground = true,
     showSystemUi = true,
     device = "spec:width=1080px,height=2340px,dpi=420"
+//    device = "spec:width=1200px,height=1920px,dpi=240"
+//    device = "spec:width=800px,height=1280px,dpi=240"
 )
 @Composable
 fun HistoryScreenPreview() {
     AndroidTheme {
-
-        val sampleList = listOf(
-            HistoryItem(
-                alcCode = "S00",
-                materialNo = "05203-SW000",
-                supplier = "S994",
-                process = "실장착1",
-                status = "불량 등록",
-                createdAt = "2026-04-16 09:30:21",
-                operator = "담당1",
-                defectReason = "스크래치"
-            )
-        )
-
         HistoryScreen(
-            onBackClick = {},
-            previewData = sampleList   // 👈 핵심
+            onBackClick = {}
         )
     }
 }

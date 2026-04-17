@@ -49,6 +49,8 @@ import android.content.Context
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.filled.Refresh
 import androidx.core.content.edit
 
 class DetailActivity : ComponentActivity() {
@@ -94,6 +96,7 @@ fun DetailScreen(
     status: String,
     onBackClick: () -> Unit
 ) {
+    var isEditMode by remember { mutableStateOf(false) }
     var showResultDialog by remember { mutableStateOf(false) }
     var resultMessage by remember { mutableStateOf("") }
     var currentStatus by remember { mutableStateOf(status) }
@@ -277,7 +280,6 @@ fun DetailScreen(
 
             detailApi()
             showResultDialog = true
-
         } catch (e: Exception) {
             Log.e("REGISTER_API", "등록 오류", e)
             resultMessage = "불량 등록 실패"
@@ -349,13 +351,86 @@ fun DetailScreen(
                 detailApi()
             }
             showResultDialog = true
-
         } catch (e: Exception) {
             Log.e("CANCEL_API", "취소 오류", e)
             resultMessage = "불량 취소 실패"
             scope.launch {
                 detailApi()
             }
+            showResultDialog = true
+        }
+    }
+
+    // 불량 수정 api
+    suspend fun updateDefectApi() {
+        try {
+            val result = withContext(Dispatchers.IO) {
+
+                val apiUrl =
+                    "${ApiSettings.getBaseUrl(context)}/api/MaterialsControllers/update-defect"
+
+                val url = URL(apiUrl)
+                val connection =
+                    url.openConnection() as HttpURLConnection
+
+                try {
+                    connection.requestMethod = "POST"
+                    connection.connectTimeout = 5000
+                    connection.readTimeout = 5000
+                    connection.doOutput = true
+                    connection.setRequestProperty(
+                        "Content-Type",
+                        "application/json; charset=UTF-8"
+                    )
+
+                    val requestJson = JSONObject().apply {
+                        put("AlcCode", alcCode)
+                        put("MaterialNo", materialNo)
+                        put("Supplier", supplier)
+                        put("Process", process)
+                        put("DefectReason", selectedDefectReason)
+                        put("Operator", selectedOperator)
+                    }
+
+                    connection.outputStream.use {
+                        it.write(
+                            requestJson.toString()
+                                .toByteArray(Charsets.UTF_8)
+                        )
+                    }
+
+                    connection.inputStream.bufferedReader().use {
+                        it.readText()
+                    }
+
+                } finally {
+                    connection.disconnect()
+                }
+            }
+
+            val json = JSONObject(result)
+
+            resultMessage =
+                json.optString(
+                    "message",
+                    "수정 완료"
+                )
+
+            prefs.edit {
+                putString("saved_operator", selectedOperator)
+            }
+
+            // 최신 데이터 다시 조회
+            detailApi()
+
+            showResultDialog = true
+
+        } catch (e: Exception) {
+            Log.e("UPDATE_API", "수정 오류", e)
+
+            resultMessage = "수정 실패"
+
+            detailApi()
             showResultDialog = true
         }
     }
@@ -383,12 +458,11 @@ fun DetailScreen(
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
         ) {
-
             // 상단 뒤로가기 + 제목
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 30.dp, top = 30.dp),
+                    .padding(top = 30.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(
@@ -405,7 +479,27 @@ fun DetailScreen(
                 )
             }
 
-            if (!isDefect) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
+                IconButton(
+                    onClick = {
+                        selectedOperator = ""
+                        selectedDefectReason = ""
+                    }
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Refresh,
+                        contentDescription = "초기화",
+                        tint = Color(0xFF191970),
+                        modifier = Modifier.size(35.dp)
+                    )
+                }
+            }
+
+            if (!isDefect || isEditMode) {
                 SearchableDropdownField(
                     label = "불량 사유",
                     options = defectOptions,
@@ -483,62 +577,123 @@ fun DetailScreen(
             Spacer(modifier = Modifier.height(30.dp))
 
             // 하단 버튼
-            Row(
+            Column(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Button(
-                    onClick = onBackClick,
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color.Gray
-                    )
+                // 뒤로가기/불량취소
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Text("뒤로가기")
+                    // 뒤로가기
+                    Button(
+                        onClick = onBackClick,
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color.Gray
+                        )
+                    ) {
+                        Text("뒤로가기")
+                    }
+
+                    if (isDefect) {
+                        // 불량 취소
+                        Button(
+                            onClick = {
+                                if (!isEditMode) {
+                                    scope.launch {
+                                        cancelDefectApi()
+                                    }
+                                }
+                            },
+                            enabled = !isEditMode,   // 클릭 차단
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor =
+                                    if (isEditMode) Color(0xFF6A6AD9)
+                                    else Color(0xFF191970)
+                            )
+                        ) {
+                            Text(
+                                "불량 취소",
+                                color = if (isEditMode) Color(0xFFE0E0E0) else Color.White
+                            )
+                        }
+                    } else {
+                        // 정상일 때는 불량 등록
+                        Button(
+                            onClick = {
+                                if (selectedDefectReason.isBlank()) {
+                                    resultMessage = "불량 사유를 선택하세요."
+                                    showResultDialog = true
+                                    return@Button
+                                }
+
+                                if (selectedOperator.isBlank()) {
+                                    resultMessage = "담당자를 선택하세요."
+                                    showResultDialog = true
+                                    return@Button
+                                }
+
+                                scope.launch {
+                                    registerDefectApi()
+                                }
+                            },
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFF191970)
+                            )
+                        ) {
+                            Text("불량 등록")
+                        }
+                    }
                 }
 
+                // 수정하기
                 if (isDefect) {
                     Button(
                         onClick = {
-                            scope.launch {
-                                cancelDefectApi()
+                            if (!isEditMode) {
+                                // 수정모드 진입
+                                isEditMode = true
+
+                                selectedDefectReason = ""
+                                selectedOperator = ""
+
+                            } else {
+                                // 👉 수정 완료
+
+                                if (selectedDefectReason.isBlank()) {
+                                    resultMessage = "불량 사유를 선택하세요."
+                                    showResultDialog = true
+                                    return@Button
+                                }
+
+                                if (selectedOperator.isBlank()) {
+                                    resultMessage = "담당자를 선택하세요."
+                                    showResultDialog = true
+                                    return@Button
+                                }
+
+                                scope.launch {
+                                    updateDefectApi()
+                                    isEditMode = false
+                                    detailApi()
+                                }
                             }
                         },
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier.fillMaxWidth(),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = Color(0xFF191970)
                         )
                     ) {
-                        Text("불량 취소")
-                    }
-                } else{
-                    Button(
-                        onClick = {
-                            if (selectedDefectReason.isBlank()) {
-                                resultMessage = "불량 사유를 선택하세요."
-                                showResultDialog = true
-                                return@Button
-                            }
-
-                            if (selectedOperator.isBlank()) {
-                                resultMessage = "담당자를 선택하세요."
-                                showResultDialog = true
-                                return@Button
-                            }
-
-                            scope.launch {
-                                registerDefectApi()
-                            }
-                        },
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF191970)
-                        )
-                    ) {
-                        Text("불량 등록")
+                        Text(if (isEditMode) "수정 완료" else "수정하기")
                     }
                 }
             }
+
+
             if (showResultDialog) {
                 AlertDialog(
                     onDismissRequest = {

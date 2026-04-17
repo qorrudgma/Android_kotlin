@@ -4,7 +4,9 @@ import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.widget.FrameLayout
 import androidx.activity.ComponentActivity
+import androidx.annotation.OptIn
 import androidx.camera.core.*
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
@@ -22,8 +24,14 @@ class QRScannerActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        val frameLayout = FrameLayout(this)
         previewView = PreviewView(this)
-        setContentView(previewView)
+        val overlay = QRScannerOverlay(this)
+
+        frameLayout.addView(previewView)
+        frameLayout.addView(overlay)
+
+        setContentView(frameLayout)
 
         if (
             ContextCompat.checkSelfPermission(
@@ -41,6 +49,7 @@ class QRScannerActivity : ComponentActivity() {
         }
     }
 
+    @OptIn(ExperimentalGetImage::class)
     private fun startCamera() {
         val cameraProviderFuture =
             ProcessCameraProvider.getInstance(this)

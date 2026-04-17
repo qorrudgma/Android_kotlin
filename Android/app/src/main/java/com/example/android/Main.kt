@@ -1,6 +1,5 @@
 package com.example.android
 
-import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.util.Log
@@ -17,7 +16,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -29,6 +27,7 @@ import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
@@ -71,14 +70,6 @@ class MainActivity : ComponentActivity() {
         setContent {
             AndroidTheme {
                 MainScreen(
-                    onLogoutClick = {
-                        val prefs = getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
-                        prefs.edit().remove("saved_operator").apply()
-
-                        val intent = Intent(this@MainActivity, LoginActivity::class.java)
-                        startActivity(intent)
-                        finish()
-                    },
                     onSettingClick ={
                         val intent = Intent(this@MainActivity, SettingActivity::class.java)
                         startActivity(intent)
@@ -101,7 +92,6 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun MainScreen(
-    onLogoutClick: () -> Unit,
     onSettingClick: () -> Unit,
     onQrClick: () -> Unit,
     onQrScanned: ((String) -> Unit) -> Unit,
@@ -399,36 +389,33 @@ fun MainScreen(
             selectedProcess = ""
 
             val parts = qrValue.split("<GS>")
-            val valuesAfterGs = parts.drop(1)
 
-            for (rawItem in valuesAfterGs) {
+            if (parts.size == 1) {
+                selectedAlcCode = qrValue.trim()
+            } else {
+                val valuesAfterGs = parts.drop(1)
 
-                val item = rawItem.trim()
+                for (rawItem in valuesAfterGs) {
 
-                if (item.isEmpty()) continue
+                    val item = rawItem.trim()
+                    if (item.isEmpty()) continue
 
-                val firstChar = item.first()
-                val remainingText = item.drop(1).trim()
+                    val firstChar = item.first()
+                    val remainingText = item.drop(1).trim()
 
-                when (firstChar) {
-                    'S' -> {
-                        selectedAlcCode =
-                            remainingText.ifBlank { "" }
-                    }
-
-                    'P' -> {
-                        selectedMaterialNo =
-                            remainingText.ifBlank { "" }
-                    }
-
-                    'V' -> {
-                        selectedSupplier =
-                            remainingText.ifBlank { "" }
-                    }
-
-                    'A' -> {
-                        selectedProcess =
-                            remainingText.ifBlank { "" }
+                    when (firstChar) {
+                        'S' -> {
+                            selectedAlcCode = remainingText.ifBlank { "" }
+                        }
+                        'P' -> {
+                            selectedMaterialNo = remainingText.ifBlank { "" }
+                        }
+                        'V' -> {
+                            selectedSupplier = remainingText.ifBlank { "" }
+                        }
+                        'A' -> {
+                            selectedProcess = remainingText.ifBlank { "" }
+                        }
                     }
                 }
             }
@@ -475,13 +462,13 @@ fun MainScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp)
         ) {
-            LogoutSection(
-                onLogoutClick = onLogoutClick,
-                onSettingClick = onSettingClick
-            )
-
             HeaderSection(
-                onQrClick = onQrClick
+                onQrClick = onQrClick,
+                onResetClick = {
+                    reset()
+                    focusManager.clearFocus()
+                },
+                onSettingClick = onSettingClick
             )
 
             FilterSection(
@@ -604,15 +591,10 @@ fun MainScreen(
                         }
                     }
                 },
-                onResetClick = {
+                onHistoryClick = {
                     reset()
-                    focusManager.clearFocus()
-
-                    scope.launch {
-                        loadInitialOptions()
-                    }
-                },
-                onHistoryClick = onHistoryClick
+                    onHistoryClick()
+                }
             )
         }
 
@@ -643,74 +625,62 @@ fun MainScreen(
 
 @Composable
 fun HeaderSection(
-    onQrClick: () -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 16.dp, bottom = 12.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            text = "제품 불량 전산 시스템",
-            fontSize = 28.sp,
-            fontWeight = FontWeight.Bold
-        )
-
-        Button(
-            onClick = { onQrClick() },
-            colors = ButtonDefaults.buttonColors(
-                containerColor = Color(0xFF191970),
-                contentColor = Color.White
-            ),
-            shape = RoundedCornerShape(10.dp)
-
-        ) {
-            Icon(
-                imageVector = Icons.Default.QrCodeScanner,
-                contentDescription = "QR Scan",
-                tint = Color.White,
-                modifier = Modifier.size(32.dp)
-            )
-        }
-    }
-}
-
-@Composable
-fun LogoutSection(
-    onLogoutClick: () -> Unit,
+    onQrClick: () -> Unit,
+    onResetClick: () -> Unit,
     onSettingClick: () -> Unit
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(bottom = 16.dp, top = 30.dp),
+            .padding(top = 30.dp, bottom = 10.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-
-        // 왼쪽 로그아웃
         Button(
-            onClick = { onLogoutClick() },
+            onClick = { onQrClick() },
+            contentPadding = PaddingValues(0.dp),
             colors = ButtonDefaults.buttonColors(
                 containerColor = Color(0xFF191970),
                 contentColor = Color.White
-            )
-        ) {
-            Text("로그아웃")
-        }
-
-        // 오른쪽 설정 아이콘
-        IconButton(
-            onClick = { onSettingClick() }
+            ),
+            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier.size(90.dp)
         ) {
             Icon(
-                imageVector = Icons.Default.Settings,
-                contentDescription = "설정",
-                tint = Color(0xFF191970),
-                modifier = Modifier.size(32.dp)
+                imageVector = Icons.Default.QrCodeScanner,
+                contentDescription = "QR Scan",
+                tint = Color.White,
+                modifier = Modifier.size(48.dp)
             )
+        }
+
+        Column(
+            horizontalAlignment = Alignment.End
+        ) {
+
+            // 설정
+            IconButton(
+                onClick = { onSettingClick() }
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Settings,
+                    contentDescription = "설정",
+                    tint = Color(0xFF191970),
+                    modifier = Modifier.size(35.dp)
+                )
+            }
+
+            // 리셋
+            IconButton(
+                onClick = { onResetClick() }
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Refresh,
+                    contentDescription = "초기화",
+                    tint = Color(0xFF191970),
+                    modifier = Modifier.size(35.dp)
+                )
+            }
         }
     }
 }
@@ -869,7 +839,6 @@ fun SearchableDropdownField(
 @Composable
 fun ButtonSection(
     onRegisterClick: () -> Unit,
-    onResetClick: () -> Unit,
     onHistoryClick: () -> Unit
 ) {
     Column(
@@ -884,14 +853,14 @@ fun ButtonSection(
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Button(
-                onClick = { onResetClick() },
+                onClick = { onHistoryClick() },
                 modifier = Modifier.weight(1f),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color.Gray
+                    containerColor = Color(0xFF191970)
                 )
             ) {
                 Text(
-                    text = "리셋",
+                    text = "이력확인",
                     fontSize = 18.sp
                 )
             }
@@ -910,18 +879,6 @@ fun ButtonSection(
             }
         }
 
-        Button(
-            onClick = { onHistoryClick() },
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = Color(0xFF191970)
-            )
-        ) {
-            Text(
-                text = "이력확인",
-                fontSize = 18.sp
-            )
-        }
     }
 }
 
@@ -937,7 +894,6 @@ fun ButtonSection(
 fun MainScreenPreview() {
     AndroidTheme {
         MainScreen(
-            onLogoutClick = {},
             onSettingClick = {},
             onQrClick = {},
             onQrScanned = {},
