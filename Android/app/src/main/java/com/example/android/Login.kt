@@ -98,15 +98,31 @@ fun LoginScreen(
         }
     }
 
+
+
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFFF5F6F8)),
-        contentAlignment = Alignment.Center
+            .background(Color(0xFFF5F6F8))
+//        contentAlignment = Alignment.Center
     ) {
+        IconButton(
+            onClick = { onSettingClick() },
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(30.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Settings,
+                contentDescription = "설정",
+                tint = Color(0xFF191970),
+                modifier = Modifier.size(32.dp)
+            )
+        }
+
         Column(
             modifier = Modifier
-                .fillMaxSize()
+                .align(Alignment.Center)
                 .widthIn(max = 600.dp)
                 .background(Color(0xFFF5F6F8))
                 .padding(horizontal = 20.dp)
@@ -117,23 +133,7 @@ fun LoginScreen(
                     focusManager.clearFocus()
                 }
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 30.dp),
-                horizontalArrangement = Arrangement.End
-            ) {
-                IconButton(
-                    onClick = { onSettingClick() }
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Settings,
-                        contentDescription = "설정",
-                        tint = Color(0xFF191970),
-                        modifier = Modifier.size(32.dp)
-                    )
-                }
-            }
+
 
             LoginHeaderSection(
                 modifier = Modifier
@@ -295,12 +295,12 @@ fun LoginInputSection(
 ) {
 
     Box(
-        modifier = modifier,
+        modifier = modifier.fillMaxWidth(),
         contentAlignment = Alignment.Center
     ) {
         Card(
             modifier = Modifier
-                .fillMaxWidth()
+                .widthIn(max = 500.dp)
                 .padding(8.dp),
             shape = RoundedCornerShape(16.dp),
             elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
@@ -410,8 +410,8 @@ fun BottomSection(
 @Preview(
     showBackground = true,
     showSystemUi = true,
-    device = "spec:width=1080px,height=2340px,dpi=420"
-//    device = "spec:width=1200px,height=1920px,dpi=240"
+//    device = "spec:width=1080px,height=2340px,dpi=420"
+    device = "spec:width=1200px,height=1920px,dpi=240"
 //    device = "spec:width=800px,height=1280px,dpi=240"
 )
 

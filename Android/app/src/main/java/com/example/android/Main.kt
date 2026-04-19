@@ -883,8 +883,8 @@ fun ButtonSection(
 @Preview(
     showBackground = true,
     showSystemUi = true,
-    device = "spec:width=1080px,height=2340px,dpi=420"
-//    device = "spec:width=1200px,height=1920px,dpi=240"
+//    device = "spec:width=1080px,height=2340px,dpi=420"
+    device = "spec:width=1200px,height=1920px,dpi=240"
 //    device = "spec:width=800px,height=1280px,dpi=240"
 )
 
