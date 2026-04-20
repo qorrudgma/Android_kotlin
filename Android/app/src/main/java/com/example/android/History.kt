@@ -370,7 +370,7 @@ fun HistoryScreen(
                         loadHistory()
 
                         if (historyList.isEmpty()) {
-                            dialogMessage = "$selectedDate $selectedOperator 님의 작업 이력이 없습니다."
+                            dialogMessage = "$selectedDate \n $selectedOperator 님의 작업 이력이 없습니다."
                             showDialog = true
                         }
                     }

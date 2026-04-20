@@ -46,12 +46,23 @@ import java.net.URL
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.TextButton
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.pdf.PdfDocument
+import android.print.PrintAttributes
+import android.print.PrintDocumentAdapter
+import android.print.PrintDocumentInfo
+import android.print.PrintManager
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.Refresh
 import androidx.core.content.edit
+import com.google.zxing.BarcodeFormat
+import com.google.zxing.qrcode.QRCodeWriter
+import com.google.zxing.EncodeHintType
 
 class DetailActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -84,6 +95,160 @@ class DetailActivity : ComponentActivity() {
     }
 }
 
+fun generateQrData(
+    alcCode: String,
+    materialNo: String,
+    supplier: String,
+    process: String,
+    defectReason: String,
+    operator: String,
+    date: String
+): String {
+
+    val RS = "<RS>"
+    val GS = "<GS>"
+    val EOT = "<EOT>"
+
+    val formattedDate = formatDateYYMMDD(date)
+    val cleanMaterialNo = materialNo.replace("-", "")
+
+    return "[)>" + RS + "06" + GS +
+            "V$supplier" + GS +
+            "P$cleanMaterialNo" + GS +
+            "S$alcCode" + GS +
+            "R$defectReason" + GS +
+            "O$operator" + GS +
+            "A$process" + GS +
+            "D$formattedDate" +
+            RS + EOT
+}
+
+fun printQr(
+    context: Context,
+    alcCode: String,
+    materialNo: String,
+    supplier: String,
+    process: String,
+    defectReason: String,
+    operator: String,
+    date: String
+) {
+    val qrData = generateQrData(
+        alcCode,
+        materialNo,
+        supplier,
+        process,
+        defectReason,
+        operator,
+        date
+    )
+
+    val bitmap = generateQrBitmap(qrData)
+
+    printBitmap(context, bitmap)
+}
+
+fun formatDateYYMMDD(dateStr: String): String {
+    return try {
+        val inputFormat = java.text.SimpleDateFormat("yyyy-MM-dd a hh:mm:ss", java.util.Locale.KOREA)
+        val outputFormat = java.text.SimpleDateFormat("yyMMdd")
+
+        val date = inputFormat.parse(dateStr)
+        outputFormat.format(date!!)
+    } catch (e: Exception) {
+        ""
+    }
+}
+
+
+// 프린터
+fun generateQrBitmap(text: String): Bitmap {
+    val size = 500
+
+    val hints = mapOf(
+        EncodeHintType.CHARACTER_SET to "UTF-8"
+    )
+
+    val bits = QRCodeWriter().encode(
+        text,
+        BarcodeFormat.QR_CODE,
+        size,
+        size,
+        hints   // 🔥 이거 추가
+    )
+
+    val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+
+    for (x in 0 until size) {
+        for (y in 0 until size) {
+            bitmap.setPixel(
+                x, y,
+                if (bits[x, y]) android.graphics.Color.BLACK else android.graphics.Color.WHITE
+            )
+        }
+    }
+
+    return bitmap
+}
+
+fun printBitmap(context: Context, bitmap: Bitmap) {
+
+    val printManager = context.getSystemService(Context.PRINT_SERVICE) as PrintManager
+
+    val printAdapter = object : PrintDocumentAdapter() {
+
+        override fun onLayout(
+            oldAttributes: PrintAttributes?,
+            newAttributes: PrintAttributes?,
+            cancellationSignal: android.os.CancellationSignal?,
+            callback: LayoutResultCallback?,
+            extras: Bundle?
+        ) {
+            val info = PrintDocumentInfo.Builder("qr_print.pdf")
+                .setContentType(PrintDocumentInfo.CONTENT_TYPE_DOCUMENT)
+                .build()
+
+            callback?.onLayoutFinished(info, true)
+        }
+
+        override fun onWrite(
+            pages: Array<android.print.PageRange>,
+            destination: android.os.ParcelFileDescriptor,
+            cancellationSignal: android.os.CancellationSignal,
+            callback: WriteResultCallback
+        ) {
+            val pdf = PdfDocument()
+            val pageInfo = PdfDocument.PageInfo.Builder(1200, 1200, 1).create()
+            val page = pdf.startPage(pageInfo)
+
+            val canvas = page.canvas
+
+            // 배경 먼저 깔기
+            canvas.drawColor(android.graphics.Color.WHITE)
+
+            // 텍스트 테스트
+            val paint = android.graphics.Paint()
+            paint.textSize = 60f
+            paint.color = android.graphics.Color.BLACK
+
+            canvas.drawText("QR TEST", 100f, 100f, paint)
+
+            // QR 크게
+            val scaledBitmap = Bitmap.createScaledBitmap(bitmap, 400, 400, true)
+            canvas.drawBitmap(scaledBitmap, 100f, 200f, null)
+
+            pdf.finishPage(page)
+
+            pdf.writeTo(java.io.FileOutputStream(destination.fileDescriptor))
+            pdf.close()
+
+            callback.onWriteFinished(arrayOf(android.print.PageRange.ALL_PAGES))
+        }
+    }
+
+    printManager.print("QR Print", printAdapter, null)
+}
+
 @Composable
 fun DetailScreen(
     alcCode: String,
@@ -101,6 +266,11 @@ fun DetailScreen(
     var currentStatus by remember { mutableStateOf(status) }
     var currentDefectReason by remember { mutableStateOf(defectReason) }
     var currentOperator by remember { mutableStateOf(operator) }
+    var currentDate by remember { mutableStateOf("") }
+    var currentAlcCode by remember { mutableStateOf("") }
+    var currentMaterialNo by remember { mutableStateOf("") }
+    var currentSupplier by remember { mutableStateOf("") }
+    var currentProcess by remember { mutableStateOf("") }
 
     val isDefect = currentStatus.contains("불량")
     var selectedDefectReason by remember { mutableStateOf("") }
@@ -206,14 +376,18 @@ fun DetailScreen(
 
             val json = JSONObject(result)
 
-            currentDefectReason =
-                json.optString("defectReason", "")
+            currentStatus = json.optString("status", "")
+            currentDefectReason = json.optString("defectReason", "")
+            currentOperator = json.optString("operater", "")
+            currentDate = json.optString("createdAt","")
+            currentAlcCode = json.optString("alcCode", "")
+            currentMaterialNo = json.optString("materialNo", "")
+            currentSupplier = json.optString("supplier","")
+            currentProcess = json.optString("process","")
 
-            currentOperator =
-                json.optString("operater", "")
 
-            currentStatus =
-                json.optString("status", "")
+            Log.d("DETAIL_API", "전체 => $json")
+            Log.d("DETAIL_API", "date => $currentDate")
 
         } catch (e: Exception) {
             Log.e("DETAIL_API", "상세조회 오류", e)
@@ -436,6 +610,7 @@ fun DetailScreen(
 
     LaunchedEffect(Unit) {
         operatorApi()
+        detailApi()
         selectedOperator =
             prefs.getString("saved_operator", "") ?: ""
     }
@@ -461,11 +636,11 @@ fun DetailScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 30.dp),
+                    .padding(top = 10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(
-                    onClick = { onBackClick() }
+                    onClick = onBackClick
                 ) {
                     Icon(
                         imageVector = Icons.Default.ArrowBack,
@@ -521,11 +696,46 @@ fun DetailScreen(
                     }
                 }
             )
+            // 프린트
+            if (isDefect) {
+                Log.d("PRINT","프린트 버튼 클릭")
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 10.dp),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    Button(
+                        onClick = {
+                            printQr(
+                                context,
+                                currentAlcCode,
+                                currentMaterialNo,
+                                currentSupplier,
+                                currentProcess,
+                                currentDefectReason,
+                                currentOperator,
+                                currentDate
+                            )
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF191970)
+                        )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Print,
+                            contentDescription = "프린트"
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("프린트")
+                    }
+                }
+            }
 
             // 상세 카드
             Card(
                 modifier = Modifier.fillMaxWidth()
-                    .padding(top = 30.dp),
+                    .padding(top = 10.dp),
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(
                     containerColor = Color.White

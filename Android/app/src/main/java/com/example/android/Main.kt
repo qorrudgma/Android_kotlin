@@ -38,6 +38,15 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import android.graphics.Bitmap
+import com.google.zxing.BarcodeFormat
+import com.google.zxing.qrcode.QRCodeWriter
+import android.print.PrintAttributes
+import android.print.PrintManager
+import android.print.PrintDocumentAdapter
+import android.graphics.pdf.PdfDocument
+import android.content.Context
+import android.print.PrintDocumentInfo
 
 class MainActivity : ComponentActivity() {
 
@@ -111,7 +120,7 @@ fun MainScreen(
     var selectedMaterialNo by remember { mutableStateOf("") }
     var selectedSupplier by remember { mutableStateOf("") }
     var selectedProcess by remember { mutableStateOf("") }
-    var selectedOperator by remember { mutableStateOf("") }
+//    var selectedOperator by remember { mutableStateOf("") }
 
     var showResultDialog by remember { mutableStateOf(false) }
     var resultMessage by remember { mutableStateOf("") }
@@ -121,6 +130,10 @@ fun MainScreen(
     var detailDefectReason by remember { mutableStateOf("") }
     var detailOperator by remember { mutableStateOf("") }
     var detailStatus by remember { mutableStateOf("") }
+
+    // qr test
+    var showQrDialog by remember { mutableStateOf(false) }
+    var qrDialogMessage by remember { mutableStateOf("") }
 
     // 초기 옵션 api
     suspend fun loadInitialOptions() {
@@ -184,7 +197,7 @@ fun MainScreen(
         selectedMaterialNo = ""
         selectedSupplier = ""
         selectedProcess = ""
-        selectedOperator = ""
+//        selectedOperator = ""
 
         scope.launch {
             loadInitialOptions()
@@ -379,6 +392,85 @@ fun MainScreen(
     }
 
     // QR 읽어서 처리하기
+//    suspend fun readQR(qrValue: String) {
+//        try {
+//            Log.d("QR_readQR", "qrValue => $qrValue")
+//
+//            selectedAlcCode = ""
+//            selectedMaterialNo = ""
+//            selectedSupplier = ""
+//            selectedProcess = ""
+//
+//            val parts = qrValue.split("<GS>")
+//
+//            if (parts.size == 1) {
+//                selectedAlcCode = qrValue.trim()
+//            } else {
+//                val valuesAfterGs = parts.drop(1)
+//
+//                for (rawItem in valuesAfterGs) {
+//
+//                    val item = rawItem.trim()
+//                    if (item.isEmpty()) continue
+//
+//                    val firstChar = item.first()
+//                    val remainingText = item.drop(1).trim()
+//
+//                    when (firstChar) {
+//                        'S' -> {
+//                            selectedAlcCode = remainingText.ifBlank { "" }
+//                        }
+//                        'P' -> {
+//                            val value = remainingText.ifBlank { "" }
+//
+//                            selectedMaterialNo = if (value.length > 5) {
+//                                value.substring(0, 5) + "-" + value.substring(5)
+//                            } else {
+//                                value
+//                            }
+//                        }
+//                        'V' -> {
+//                            selectedSupplier = remainingText.ifBlank { "" }
+//                        }
+//                        'A' -> {
+//                            selectedProcess = remainingText.ifBlank { "" }
+//                        }
+//                    }
+//                }
+//            }
+//
+//            // 필터 실행
+//            refreshAllOptions(
+//                selectedAlcCode,
+//                selectedMaterialNo,
+//                selectedSupplier,
+//                selectedProcess
+//            )
+//
+//            focusManager.clearFocus()
+//
+//        } catch (e: Exception) {
+//            Log.e("QR_PARSE", "QR 파싱 오류", e)
+//        }
+//    }
+
+    if (showQrDialog) {
+        AlertDialog(
+            onDismissRequest = { showQrDialog = false },
+            title = { Text("QR 파싱 결과") },
+            text = { Text(qrDialogMessage) },
+            confirmButton = {
+                TextButton(onClick = { showQrDialog = false }) {
+                    Text("확인")
+                }
+            }
+        )
+    }
+
+    var selectedDefectReason = ""
+    var selectedOperator = ""
+    var selectedDate = ""
+
     suspend fun readQR(qrValue: String) {
         try {
             Log.d("QR_readQR", "qrValue => $qrValue")
@@ -388,10 +480,15 @@ fun MainScreen(
             selectedSupplier = ""
             selectedProcess = ""
 
-            val parts = qrValue.split("<GS>")
+            // 🔥 GS 문자 대응 추가
+            val normalized = qrValue
+                .replace("\u001D", "<GS>")
+                .replace("\u001E", "<RS>")
+
+            val parts = normalized.split("<GS>")
 
             if (parts.size == 1) {
-                selectedAlcCode = qrValue.trim()
+                selectedAlcCode = normalized.trim()
             } else {
                 val valuesAfterGs = parts.drop(1)
 
@@ -401,35 +498,81 @@ fun MainScreen(
                     if (item.isEmpty()) continue
 
                     val firstChar = item.first()
-                    val remainingText = item.drop(1).trim()
+                    val rawText = item.drop(1)
+                    val remainingText = rawText
+                        .takeWhile {
+                            it != '<' &&
+                            it != '\u001E' &&
+                            it != '\u0004'
+                        }
+                        .trim()
 
                     when (firstChar) {
-                        'S' -> {
-                            selectedAlcCode = remainingText.ifBlank { "" }
-                        }
+                        'S' -> selectedAlcCode = remainingText
+
                         'P' -> {
-                            selectedMaterialNo = remainingText.ifBlank { "" }
+                            val value = remainingText
+                            selectedMaterialNo = if (value.length > 5) {
+                                value.substring(0, 5) + "-" + value.substring(5)
+                            } else {
+                                value
+                            }
+//                            selectedMaterialNo = remainingText
                         }
-                        'V' -> {
-                            selectedSupplier = remainingText.ifBlank { "" }
-                        }
-                        'A' -> {
-                            selectedProcess = remainingText.ifBlank { "" }
-                        }
+
+                        'V' -> selectedSupplier = remainingText
+
+                        'A' -> selectedProcess = remainingText
+
+//                        'R' -> Log.d("QR_readQR", "불량 사유 => $remainingText")
+//                        'O' -> Log.d("QR_readQR", "담당자 => $remainingText")
+//                        'D' -> Log.d("QR_readQR", "날짜 => $remainingText")
+
+                        'R' -> selectedDefectReason = remainingText
+                        'O' -> selectedOperator = remainingText
+                        'D' -> selectedDate = remainingText
                     }
                 }
+                        Log.d("QR_readQR", "selectedAlcCode => $selectedAlcCode")
+                        Log.d("QR_readQR", "selectedMaterialNo => $selectedMaterialNo")
+                        Log.d("QR_readQR", "selectedSupplier => $selectedSupplier")
+                        Log.d("QR_readQR", "selectedProcess => $selectedProcess")
             }
 
-            // 필터 실행
-            refreshAllOptions(
-                selectedAlcCode,
-                selectedMaterialNo,
-                selectedSupplier,
-                selectedProcess
-            )
+            if (
+                selectedDefectReason.isNotBlank() &&
+                selectedOperator.isNotBlank() &&
+                selectedDate.isNotBlank()
+            ) {
+                val intent = Intent(context, DetailActivity::class.java).apply {
+                    putExtra("alcCode", selectedAlcCode)
+                    putExtra("materialNo", selectedMaterialNo)
+                    putExtra("supplier", selectedSupplier)
+                    putExtra("process", selectedProcess)
 
-            focusManager.clearFocus()
+                    // 불량 일 경우
+                    putExtra("defectReason", selectedDefectReason)
+                    putExtra("operator", selectedOperator)
+                    putExtra("date", selectedDate)
+                }
 
+                selectedAlcCode = ""
+                selectedMaterialNo = ""
+                selectedSupplier = ""
+                selectedProcess = ""
+
+                context.startActivity(intent)
+            } else {
+                refreshAllOptions(
+                    selectedAlcCode,
+                    selectedMaterialNo,
+                    selectedSupplier,
+                    selectedProcess
+                )
+
+                focusManager.clearFocus()
+                Log.d("QR", "R/O/D 값 없음 → 화면 이동 안함")
+            }
         } catch (e: Exception) {
             Log.e("QR_PARSE", "QR 파싱 오류", e)
         }
