@@ -31,6 +31,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 import android.content.Intent
 import androidx.compose.foundation.clickable
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.ui.text.font.FontWeight
 
 class HistoryActivity : ComponentActivity() {
@@ -75,6 +76,14 @@ fun HistoryScreen(
     var showDialog by remember { mutableStateOf(false) }
     var dialogMessage by remember { mutableStateOf("") }
 
+    var selectedDate by remember { mutableStateOf("") }
+    var showDatePicker by remember { mutableStateOf(false) }
+
+    fun getToday(): String {
+        return java.text.SimpleDateFormat("yyyy-MM-dd")
+            .format(java.util.Date())
+    }
+
     // 담당자 목록 API
     suspend fun loadOperatorList() {
         try {
@@ -114,6 +123,7 @@ fun HistoryScreen(
     // 이력 조회 API
     suspend fun loadHistory() {
         Log.d("HISTORY_API", "loadHistory 시작")
+        Log.d("HISTORY_API", selectedDate)
         try {
             val result = withContext(Dispatchers.IO) {
                 val apiUrl =
@@ -134,6 +144,7 @@ fun HistoryScreen(
 
                     val requestJson = JSONObject().apply {
                         put("Name", selectedOperator)
+                        put("Date", selectedDate)
                     }
 
                     connection.outputStream.use {
@@ -228,8 +239,38 @@ fun HistoryScreen(
         }
     }
 
+    if (showDatePicker) {
+        val datePickerState = rememberDatePickerState()
+
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val millis = datePickerState.selectedDateMillis
+                        if (millis != null) {
+                            val sdf = java.text.SimpleDateFormat("yyyy-MM-dd")
+                            selectedDate = sdf.format(java.util.Date(millis))
+                        }
+                        showDatePicker = false
+                    }
+                ) {
+                    Text("확인")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePicker = false }) {
+                    Text("취소")
+                }
+            }
+        ) {
+            DatePicker(state = datePickerState)
+        }
+    }
+
     LaunchedEffect(Unit) {
         loadOperatorList()
+        selectedDate = getToday()
     }
 
     Box(
@@ -273,6 +314,7 @@ fun HistoryScreen(
                     onClick = {
                         selectedOperator = ""
                         historyList = listOf()
+                        selectedDate = getToday()
                     }
                 ) {
                     Icon(
@@ -283,6 +325,23 @@ fun HistoryScreen(
                     )
                 }
             }
+
+            // 날짜 선택
+            OutlinedTextField(
+                value = selectedDate,
+                onValueChange = {},
+                label = { Text("날짜 선택") },
+                modifier = Modifier.fillMaxWidth(),
+                readOnly = true,
+                trailingIcon = {
+                    IconButton(onClick = { showDatePicker = true }) {
+                        Icon(
+                            imageVector = Icons.Default.Search,
+                            contentDescription = "날짜 선택"
+                        )
+                    }
+                }
+            )
 
             // 담당자 선택
             SearchableDropdownField(
@@ -311,7 +370,7 @@ fun HistoryScreen(
                         loadHistory()
 
                         if (historyList.isEmpty()) {
-                            dialogMessage = "오늘 작업 이력이 없습니다."
+                            dialogMessage = "$selectedDate $selectedOperator 님의 작업 이력이 없습니다."
                             showDialog = true
                         }
                     }
